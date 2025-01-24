@@ -13,8 +13,8 @@ function banosMetrics = BANOScalculateBANOSForEachFile(preprocessedData)
     for i = 1:length(fileNames)
         fileName = fileNames{i};
         extractMatrix = preprocessedData.(fileName);
-        gtMatrix = extractMatrix{1};
-        predMatrix = extractMatrix{2};
+        predMatrix = extractMatrix{1};
+        gtMatrix = extractMatrix{2};
         behaviorMetrics = BANOScomputeBehaviorMetrics(predMatrix, gtMatrix);
         banosMetrics.(fileName) = behaviorMetrics;
     end

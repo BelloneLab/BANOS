@@ -18,8 +18,10 @@ function tp = BANOScalculateTP(predBouts, gtBouts)
             end
         end
     end
-    tp = mean(tpScores);
-    if isnan(tp)
-        tp = 0;
+    % Return NaN if no overlapping bouts were found (matches Python behaviour).
+    if isempty(tpScores)
+        tp = NaN;
+    else
+        tp = mean(tpScores);
     end
 end

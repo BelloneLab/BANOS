@@ -16,9 +16,11 @@ function so = BANOScalculateSO(predBouts, gtBouts)
             end
         end
     end
-    so = mean(tiouScores);
-    if isnan(so)
-        so = 0;
+    % Return NaN if no overlapping bouts were found (matches Python behaviour).
+    % NaN propagates correctly through BANOSaggregateMetrics (nanmean).
+    if isempty(tiouScores)
+        so = NaN;
+    else
+        so = mean(tiouScores);
     end
 end
-
