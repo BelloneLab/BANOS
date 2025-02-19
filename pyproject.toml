@@ -1,6 +1,6 @@
 [project]
 name = "banos"
-version = "0.2.3"
+version = "0.3.0"
 description = "Behavior ANnOtation Score: ethological metrics for evaluating behavior annotation quality"
 readme = "README.md"
 license = { text = "MIT" }
