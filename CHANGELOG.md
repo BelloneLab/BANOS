@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.0] — 2025-02-27
+
+First stable release. Metric computation and the golden fixtures are unchanged from 0.3.0.
+
+### Changed
+- Development status set to Production/Stable
+- New project logo, also provided as a vector file (`assets/Logo_BANOS.svg`)
+
 ## [0.3.0] — 2025-02-19
 
 ### Breaking Changes
