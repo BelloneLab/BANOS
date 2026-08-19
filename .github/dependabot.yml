@@ -1,0 +1,21 @@
+# Dependabot is intentionally scoped to GitHub Actions only.
+#
+# BANOS is a published, maintenance-only scientific package: its numerical
+# output must not change. Python dependencies are therefore pinned in
+# uv.lock and updated by hand, for security reasons only, and every update
+# is validated against the golden regression tests before it is merged.
+# Automatic pull requests on that ecosystem would work against this.
+#
+# GitHub Actions are a different matter. They execute with access to this
+# repository and to the OIDC identity used to publish on PyPI, and they
+# cannot influence any computed metric, so keeping them current carries no
+# scientific risk. Dependabot also keeps the pinned commit SHAs up to date,
+# which is what makes SHA pinning maintainable on a dormant project.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "chore"
