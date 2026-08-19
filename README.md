@@ -9,7 +9,7 @@
 [![PyPI](https://img.shields.io/pypi/v/banos)](https://pypi.org/project/banos/)
 [![PyPI Downloads](https://static.pepy.tech/badge/banos)](https://pepy.tech/project/banos)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![CI](https://github.com/BelloneLab/BANOS/actions/workflows/ci.yml/badge.svg)](https://github.com/BelloneLab/BANOS/actions/workflows/ci.yml)
 [![MATLAB File Exchange](https://www.mathworks.com/matlabcentral/images/matlab-file-exchange.svg)](https://www.mathworks.com/matlabcentral/fileexchange/157916-banos)
 
@@ -52,7 +52,7 @@ BANOS addresses these questions with four complementary metrics.
 pip install banos
 ```
 
-Requires Python 3.9+. Core dependency: `pandas`. Optional: `scipy` (for
+Requires Python 3.11+. Core dependency: `pandas`. Optional: `scipy` (for
 `matching='optimal'`).
 
 ## Quick Start
