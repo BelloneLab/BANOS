@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] — 2026-08-20
+
+### Breaking Changes
+- Minimum Python version raised to 3.11 (3.9 is end of life, 3.10 reaches it in October 2026)
+
+### Security
+- Refreshed `uv.lock` onto non-vulnerable releases of every flagged dependency
+- GitHub Actions pinned to commit SHAs; the repository now requires SHA pinning
+- Dependency policy documented in `SECURITY.md`
+
+### Maintenance
+- CI matrix now covers Python 3.11 to 3.14
+- CI installs with `uv sync --locked`, so the committed lockfile is what gets tested
+- Dependabot configured for GitHub Actions only
+- Regenerated `uv.lock`, which had drifted from `pyproject.toml`
+
+No change to metric computation: `src/banos/` and the golden fixtures are unchanged.
+
 ## [0.2.0] — 2026-03-19
 
 ### Breaking Changes
