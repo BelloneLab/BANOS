@@ -1,5 +1,5 @@
 % BANOS  Behavior ANnOtation Score toolbox.
-% Version 0.2.0  23-Jan-2025
+% Version 1.1.0  30-Oct-2026
 %
 % High-level entry point (mirrors Python banos.score):
 %   BANOS_score                     - Score one or multiple annotation pairs.
