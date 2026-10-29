@@ -10,6 +10,8 @@ and version consistency.
 
 Pipeline stages tested together:
   preprocess_data -> calculate_banos_for_each_file -> aggregate_metrics
+  preprocess_data -> calculate_components_for_each_file -> pool_components
+  (the second chain is aggregation='pooled')
 
 The test_aggregate_metrics_excludes_nan test is critical: it confirms that
 recordings where a behavior has no GT bouts (NaN metrics) do NOT pull down
@@ -22,8 +24,12 @@ import pandas as pd
 import pytest
 
 import banos
+from banos.core.matching import calculate_tp_fp_fn
 from banos.pipeline import (
     aggregate_metrics,
+    calculate_components_for_each_file,
+    compute_behavior_components,
+    pool_components,
 )
 
 PRED = pd.DataFrame(
@@ -265,6 +271,17 @@ def test_file_with_only_false_bouts_scores_f1_zero():
     assert abs(group_c["evt"]["f1_score"] - 0.5) < 1e-10
     assert abs(group_d["evt"]["f1_score"] - 0.9) < 1e-10
 
+    # Pooled: C has TP 3, FP 3, FN 3 -> F1 0.5; D has TP 5, FP 0, FN 1 ->
+    # P 1, R 5/6, F1 10/11.
+    pooled_c, _ = banos.score(
+        {"v1": _video(REAL_BOUTS), "v2": _video(false_bouts)}, aggregation="pooled"
+    )
+    pooled_d, _ = banos.score(
+        {"v1": _video(REAL_BOUTS), "v2": _video(REAL_BOUTS[:2])}, aggregation="pooled"
+    )
+    assert abs(pooled_c["evt"]["f1_score"] - 0.5) < 1e-10
+    assert abs(pooled_d["evt"]["f1_score"] - 10 / 11) < 1e-10
+
 
 def test_silent_model_on_bundled_data(all_recordings):
     """A model that predicts nothing scores F1 0 on every recording with the behavior.
@@ -287,3 +304,244 @@ def test_silent_model_on_bundled_data(all_recordings):
     assert abs(overall["f1_score"] - 0.225) < 1e-10
     assert math.isnan(group["investigation"]["ic"])
     assert math.isnan(group["other"]["ic"])
+
+    # Pooled: TP 0, FP 0, FN > 0 for every behavior, so F1 is 0 everywhere;
+    # SO, TP and IC have no term (NaN), or only 0 terms with missed_bouts='zero'.
+    pooled, pooled_overall = banos.score(data, aggregation="pooled")
+    assert {m["f1_score"] for m in pooled.values()} == {0.0}
+    assert pooled_overall["f1_score"] == 0.0
+    assert all(math.isnan(m["so"]) for m in pooled.values())
+    pooled_zero, _ = banos.score(data, aggregation="pooled", missed_bouts="zero")
+    assert {m["so"] for m in pooled_zero.values()} == {0.0}
+
+
+# --- aggregation='pooled' ---
+
+
+def test_pooled_counts_and_terms_equal_hand_sums():
+    """Pooled metrics come from the bout counts and terms summed over the files.
+
+    Video a: predicted (5,9) and (26,29) -> TP 2, FP 0, FN 1; SO terms 1, 4/5;
+    TP terms 1, 1/2; IC terms 1, 3/4 (the third real bout is missed).
+    Video b: predicted (15,19) and (45,49) -> TP 1, FP 1, FN 2; one term of 1
+    for SO, TP and IC (bout 3 found exactly, bouts 1 and 2 missed).
+    Pooled: TP 3, FP 1, FN 3 -> P 3/4, R 1/2, F1 0.6; SO (1 + 0.8 + 1) / 3,
+    TP (1 + 0.5 + 1) / 3, IC (1 + 0.75 + 1) / 3. With missed_bouts='zero',
+    the three missed bouts add three 0 terms: SO = 2.8 / 6.
+    """
+    data = {"a": _video([(5, 9), (26, 29)]), "b": _video([(15, 19), (45, 49)])}
+    preprocessed, _ = banos.preprocess_data(data)
+    components = calculate_components_for_each_file(preprocessed)
+    assert components["a"]["evt"] == {
+        "n_tp": 2,
+        "n_fp": 0,
+        "n_fn": 1,
+        "so_terms": [1.0, 0.8],
+        "tp_terms": [1.0, 0.5],
+        "ic_terms": [1.0, 0.75],
+    }
+    assert components["b"]["evt"] == compute_behavior_components(*preprocessed["b"])["evt"]
+    assert components["b"]["evt"] == {
+        "n_tp": 1,
+        "n_fp": 1,
+        "n_fn": 2,
+        "so_terms": [1.0],
+        "tp_terms": [1.0],
+        "ic_terms": [1.0],
+    }
+
+    group, overall = pool_components(components)
+    expected = {
+        "precision": 0.75,
+        "recall": 0.5,
+        "f1_score": 0.6,
+        "so": 2.8 / 3,
+        "tp": 2.5 / 3,
+        "ic": 2.75 / 3,
+    }
+    for key, value in expected.items():
+        assert abs(group["evt"][key] - value) < 1e-10, key
+    assert overall == group["evt"]
+    assert banos.score(data, aggregation="pooled") == (group, overall)
+
+    zero, _ = banos.score(data, aggregation="pooled", missed_bouts="zero")
+    assert abs(zero["evt"]["so"] - 2.8 / 6) < 1e-10
+
+
+def test_pooled_absent_behavior():
+    """In pooled mode a file without the behavior adds its false bouts to FP, nothing else.
+
+    "evt" has the real bouts of video a only (P 1, R 2/3, F1 0.8); "rare"
+    has no real bout anywhere.
+    - Video c has neither behavior and predicts nothing: the pooled values
+      do not move (per file, its correct absences would score 1.0).
+    - "rare" with nothing predicted anywhere is NaN on all six metrics.
+    - Video d predicts one false bout of each: "evt" gets FP 1, so
+      P = R = F1 = 2/3 and SO, TP, IC are unchanged; "rare" gets P 0,
+      F1 0, and R, SO, TP, IC NaN.
+    overall_metrics is the mean over the behaviors, NaN excluded.
+    """
+
+    def video(evt_pred, evt_gt, rare_pred):
+        pred = pd.DataFrame({"evt": _frames(evt_pred), "rare": _frames(rare_pred)})
+        gt = pd.DataFrame({"evt": _frames(evt_gt), "rare": _frames([])})
+        return pred, gt
+
+    a = video([(5, 9), (26, 29)], REAL_BOUTS, [])
+    c = video([], [], [])
+    d = video([(15, 19)], [], [(40, 42)])
+
+    alone, _ = banos.score({"a": a}, aggregation="pooled")
+    group, overall = banos.score({"a": a, "c": c}, aggregation="pooled")
+    assert group["evt"] == alone["evt"]
+    assert abs(group["evt"]["f1_score"] - 0.8) < 1e-10
+    assert all(math.isnan(value) for value in group["rare"].values())
+    assert overall == group["evt"]
+
+    per_file, _ = banos.score({"a": a, "c": c})
+    assert abs(per_file["evt"]["f1_score"] - 0.9) < 1e-10  # (0.8 + 1.0) / 2
+    assert per_file["rare"]["f1_score"] == 1.0
+
+    group, overall = banos.score({"a": a, "c": c, "d": d}, aggregation="pooled")
+    evt, rare = group["evt"], group["rare"]
+    for key in ("precision", "recall", "f1_score"):
+        assert abs(evt[key] - 2 / 3) < 1e-10, key
+    for key in ("so", "tp", "ic"):
+        assert evt[key] == alone["evt"][key], key
+    assert rare["precision"] == 0.0
+    assert rare["f1_score"] == 0.0
+    assert all(math.isnan(rare[key]) for key in ("recall", "so", "tp", "ic"))
+    assert abs(overall["f1_score"] - 1 / 3) < 1e-10  # (2/3 + 0) / 2
+    assert abs(overall["recall"] - 2 / 3) < 1e-10  # rare's NaN recall is excluded
+    assert overall["so"] == evt["so"]
+
+
+def test_pooled_ranks_models_by_bouts_found():
+    """Model A finds 6 of 12 real bouts, model B 3 of 12: both modes rank A first.
+
+    Four videos with real bouts (5,9), (25,29), (45,49). A finds all three in
+    video 1 and the first one in videos 2-4; B finds all three in video 1 and
+    nothing else.
+    Per file: A (1 + 3 * 0.5) / 4 = 0.625 (F1 0.5 from P 1, R 1/3),
+    B (1 + 0 + 0 + 0) / 4 = 0.25. Pooled: A TP 6, FN 6 -> F1 2/3;
+    B TP 3, FN 9 -> F1 0.4. Before 1.1.0, B's three empty videos scored F1 NaN
+    and left the mean: B got 1.0 and ranked above A.
+    """
+    model_a = {"v1": _video(REAL_BOUTS)} | {f"v{k}": _video(REAL_BOUTS[:1]) for k in (2, 3, 4)}
+    model_b = {"v1": _video(REAL_BOUTS)} | {f"v{k}": _video([]) for k in (2, 3, 4)}
+    expected = {"per_file": (0.625, 0.25), "pooled": (2 / 3, 0.4)}
+    for aggregation, (f1_a, f1_b) in expected.items():
+        group_a, _ = banos.score(model_a, aggregation=aggregation)
+        group_b, _ = banos.score(model_b, aggregation=aggregation)
+        assert abs(group_a["evt"]["f1_score"] - f1_a) < 1e-10, aggregation
+        assert abs(group_b["evt"]["f1_score"] - f1_b) < 1e-10, aggregation
+
+
+def test_pooled_single_file_returns_dict_per_behavior():
+    """A single DataFrame pair gives a dict per behavior in both aggregation modes.
+
+    PRED and GT have real bouts of both behaviors, so pooling one file changes
+    no value. Without real bouts, per file scores 1.0 (correct absence) and
+    pooled NaN.
+    """
+    assert banos.score(PRED, GT, aggregation="pooled") == banos.score(PRED, GT)
+    absent = banos.score(*_video([], []), aggregation="pooled")["evt"]
+    assert all(math.isnan(value) for value in absent.values())
+
+
+def test_score_invalid_aggregation_raises():
+    with pytest.raises(ValueError, match="Unknown aggregation"):
+        banos.score(PRED, GT, aggregation="pool")
+    with pytest.raises(ValueError, match="Unknown aggregation"):
+        banos.score({"f1": (PRED, GT)}, aggregation="pool")
+
+
+@pytest.mark.parametrize(
+    "call, message",
+    [
+        pytest.param(
+            lambda: banos.score(NO_COLUMN, NO_COLUMN, matching="best"),
+            "Unknown matching",
+            id="score-no-column-matching",
+        ),
+        pytest.param(
+            lambda: banos.score(PRED * 0.5, GT, matching="best"),
+            "Unknown matching",
+            id="score-all-dropped-matching",
+        ),
+        pytest.param(
+            lambda: banos.score({}, matching="best"),
+            "Unknown matching",
+            id="score-no-file-matching",
+        ),
+        pytest.param(
+            lambda: banos.score({}, aggregation="pool"),
+            "Unknown aggregation",
+            id="score-no-file-aggregation",
+        ),
+        pytest.param(
+            lambda: compute_behavior_components(NO_COLUMN, NO_COLUMN, matching="best"),
+            "Unknown matching",
+            id="compute_behavior_components-matching",
+        ),
+        pytest.param(
+            lambda: compute_behavior_components(NO_COLUMN, NO_COLUMN, missed_bouts="drop"),
+            "Unknown missed_bouts",
+            id="compute_behavior_components-missed_bouts",
+        ),
+        pytest.param(
+            lambda: banos.compute_behavior_metrics(NO_COLUMN, NO_COLUMN, matching="best"),
+            "Unknown matching",
+            id="compute_behavior_metrics-matching",
+        ),
+        pytest.param(
+            lambda: calculate_components_for_each_file({}, matching="best"),
+            "Unknown matching",
+            id="calculate_components_for_each_file-matching",
+        ),
+        pytest.param(
+            lambda: calculate_components_for_each_file({}, missed_bouts="drop"),
+            "Unknown missed_bouts",
+            id="calculate_components_for_each_file-missed_bouts",
+        ),
+        pytest.param(
+            lambda: banos.calculate_banos_for_each_file({}, matching="best"),
+            "Unknown matching",
+            id="calculate_banos_for_each_file-matching",
+        ),
+    ],
+)
+def test_invalid_options_raise_without_any_column(call, message):
+    """Unknown matching, missed_bouts and aggregation values raise even when
+    no column reaches the bout matching or the metrics (no column, every
+    column dropped, no file)."""
+    with pytest.raises(ValueError, match=message):
+        call()
+
+
+@pytest.mark.parametrize("aggregation", ["per_file", "pooled"])
+@pytest.mark.parametrize("several_files", [False, True])
+def test_score_passes_matching_to_bout_matching(monkeypatch, aggregation, several_files):
+    """Every score() path hands the matching option to calculate_tp_fp_fn.
+
+    Greedy and optimal matching count the same true positives on bouts read
+    from frame sequences: such bouts never overlap one another, on either
+    side, and then taking the first free overlapping real bout is already a
+    maximum matching. No input of score() can tell the two apart by its
+    numbers, so this test records the option that reaches the bout matching.
+    """
+    seen = []
+
+    def spy(pred_bouts, gt_bouts, matching="greedy"):
+        seen.append(matching)
+        return calculate_tp_fp_fn(pred_bouts, gt_bouts, matching=matching)
+
+    monkeypatch.setattr("banos.pipeline.calculate_tp_fp_fn", spy)
+    if several_files:
+        banos.score(
+            {"f1": (PRED, GT), "f2": (PRED, GT)}, matching="optimal", aggregation=aggregation
+        )
+    else:
+        banos.score(PRED, GT, matching="optimal", aggregation=aggregation)
+    assert seen
+    assert set(seen) == {"optimal"}

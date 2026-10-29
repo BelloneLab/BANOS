@@ -8,6 +8,7 @@
 %   BANOSpreprocessData             - Fill NaN, drop non-binary columns, align headers.
 %   BANOScalculateBANOSForEachFile  - Compute metrics for each recording.
 %   BANOSaggregateMetrics           - Average metrics across recordings (nanmean).
+%   BANOSpoolComponents             - Pool bout counts and terms across recordings.
 %   BANOScomputeBehaviorMetrics     - Per-behavior metric computation for one recording.
 %
 % Metric functions:

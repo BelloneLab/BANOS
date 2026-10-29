@@ -18,12 +18,15 @@ __version__ = "1.0.0"
 
 import pandas as pd
 
-from banos.core.metrics import _check_missed_bouts
 from banos.core.preprocessing import preprocess_data
 from banos.pipeline import (
+    _check_options,
     aggregate_metrics,
     calculate_banos_for_each_file,
+    calculate_components_for_each_file,
+    compute_behavior_components,
     compute_behavior_metrics,
+    pool_components,
 )
 
 __all__ = [
@@ -32,6 +35,9 @@ __all__ = [
     "compute_behavior_metrics",
     "calculate_banos_for_each_file",
     "aggregate_metrics",
+    "compute_behavior_components",
+    "calculate_components_for_each_file",
+    "pool_components",
     "__version__",
 ]
 
@@ -42,6 +48,7 @@ def score(
     *,
     matching: str = "greedy",
     missed_bouts: str = "exclude",
+    aggregation: str = "per_file",
 ) -> dict | tuple[dict, dict]:
     """Compute BANOS metrics for one or multiple annotation pairs.
 
@@ -61,25 +68,54 @@ def score(
         'exclude': left out of their averages (default)
         'zero': one term equal to 0 in each of them
         Precision, recall and F1 do not depend on this option.
+    aggregation : {'per_file', 'pooled'}
+        How the metrics are combined.
+        'per_file': each file is scored on its own, then averaged (default)
+        'pooled': each behavior is scored once on the bout counts and terms
+        of all files (see ``pool_components``)
 
     Returns
     -------
     Single file : dict
         ``{behavior: {precision, recall, f1_score, so, tp, ic}}``
     Multi file  : tuple[dict, dict]
-        ``(group_metrics, overall_metrics)``
+        ``(group_metrics, overall_metrics)``: ``group_metrics`` has the same
+        form as the single-file dict; ``overall_metrics`` is
+        ``{metric: value}``.
 
     Notes
     -----
-    Metrics return ``NaN`` when ground truth has no bouts for a given behavior.
+    With ``aggregation='per_file'``, a behavior with no GT bout in a file scores
+    1.0 on all six metrics if nothing is predicted there and 0.0 otherwise.
+    ``group_metrics`` averages each behavior over the files and
+    ``overall_metrics`` averages every (file, behavior) cell, NaN excluded.
+    With ``aggregation='pooled'``, this 1.0/0.0 rule does not apply and
+    ``overall_metrics`` averages the pooled behaviors, NaN excluded.
+    A metric is NaN when it is undefined: precision when nothing is predicted,
+    recall when there is no GT bout (pooled), SO, TP and IC when they have no
+    term (no overlap, or no found GT bout).
+
+    An unknown ``matching``, ``missed_bouts`` or ``aggregation`` value raises
+    ValueError before the data is read.
     """
-    _check_missed_bouts(missed_bouts)
+    _check_options(matching, missed_bouts)
+    if aggregation not in ("per_file", "pooled"):
+        raise ValueError(f"Unknown aggregation: {aggregation!r}. Use 'per_file' or 'pooled'.")
 
     if isinstance(data, pd.DataFrame):
         if gt is None:
             raise ValueError("When 'data' is a DataFrame, 'gt' must be provided.")
         data_dict = {"single": (data, gt)}
         data_dict, _ = preprocess_data(data_dict)
+        if aggregation == "pooled":
+            components = compute_behavior_components(
+                data_dict["single"][0],
+                data_dict["single"][1],
+                matching=matching,
+                missed_bouts=missed_bouts,
+            )
+            group_metrics, _ = pool_components({"single": components})
+            return group_metrics
         return compute_behavior_metrics(
             data_dict["single"][0],
             data_dict["single"][1],
@@ -89,6 +125,11 @@ def score(
 
     # Multi-file path
     data_dict, _ = preprocess_data(dict(data))
+    if aggregation == "pooled":
+        file_components = calculate_components_for_each_file(
+            data_dict, matching=matching, missed_bouts=missed_bouts
+        )
+        return pool_components(file_components)
     file_metrics = calculate_banos_for_each_file(
         data_dict, matching=matching, missed_bouts=missed_bouts
     )

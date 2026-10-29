@@ -13,6 +13,7 @@ function options = BANOSparseOptions(args, names)
     % Options and their values (the first value is the default):
     % 'matching'     - 'greedy', 'optimal'
     % 'missed_bouts' - 'exclude', 'zero'
+    % 'aggregation'  - 'per_file', 'pooled'
     %
     % Errors:
     % BANOS:unknownOption      - a name the caller does not accept.
@@ -21,7 +22,8 @@ function options = BANOSparseOptions(args, names)
 
     allowedValues = struct( ...
         'matching',     {{'greedy', 'optimal'}}, ...
-        'missed_bouts', {{'exclude', 'zero'}});
+        'missed_bouts', {{'exclude', 'zero'}}, ...
+        'aggregation',  {{'per_file', 'pooled'}});
 
     options = struct();
     for k = 1:numel(names)

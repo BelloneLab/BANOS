@@ -26,13 +26,23 @@ function varargout = BANOS_score(data, varargin)
 %                     frame inside it: 'exclude' (default) leaves it out of
 %                     their averages, 'zero' adds a term equal to 0 to each.
 %                     Precision, recall and F1 do not depend on it.
+%   'aggregation'   - how the metrics are combined: 'per_file' (default)
+%                     scores each recording on its own, then averages;
+%                     'pooled' scores each behavior once on the bout counts
+%                     and terms of all recordings (see BANOSpoolComponents).
+%                     The outputs have the same form in both modes.
 %   Option names and values are case-insensitive. An unknown name or value
 %   raises an error (BANOS:unknownOption, BANOS:invalidOption).
 %
 % NaN VALUES:
-%   A behavior with no ground-truth bouts returns NaN for all metrics.
-%   NaN values are correctly excluded from group and overall averages
-%   (via nanmean), so they do not bias results.
+%   With 'per_file', a behavior with no ground-truth bouts in a recording
+%   scores 1.0 on all metrics if nothing is predicted there and 0.0
+%   otherwise; groupMetrics and overallMetrics average with nanmean.
+%   With 'pooled', this 1.0/0.0 rule does not apply and overallMetrics
+%   averages the pooled behaviors with nanmean.
+%   A metric is NaN when it is undefined: precision when nothing is
+%   predicted, recall when there is no GT bout (pooled), SO, TP and IC when
+%   they have no term (no overlap, or no found GT bout).
 %
 % EXAMPLE — single recording:
 %   pred = [{'event1','event2'}; num2cell(predData)];
@@ -47,7 +57,7 @@ function varargout = BANOS_score(data, varargin)
 %   disp(overallMet.f1_score)
 %
 % See also: BANOSpreprocessData, BANOScalculateBANOSForEachFile,
-%           BANOSaggregateMetrics, Contents
+%           BANOSaggregateMetrics, BANOSpoolComponents, Contents
 
     % --- Parse name-value options ------------------------------------------
     % Single recording: the first cell array argument is the ground truth;
@@ -60,7 +70,8 @@ function varargout = BANOS_score(data, varargin)
             varargin(gtIndex) = [];
         end
     end
-    options = BANOSparseOptions(varargin, {'matching', 'missed_bouts'});
+    options = BANOSparseOptions(varargin, {'matching', 'missed_bouts', 'aggregation'});
+    pooled = strcmp(options.aggregation, 'pooled');
 
     if strcmp(options.matching, 'optimal')
         error('BANOS_score: optimal matching is not yet implemented in MATLAB. Use the Python package (banos.score(..., matching=''optimal'')).');
@@ -70,9 +81,13 @@ function varargout = BANOS_score(data, varargin)
     if isstruct(data)
         % Multi-recording: data is already a properly formatted struct
         [preprocessed, ~]          = BANOSpreprocessData(data);
-        fileMetrics                 = BANOScalculateBANOSForEachFile(preprocessed, ...
+        [fileMetrics, fileComponents] = BANOScalculateBANOSForEachFile(preprocessed, ...
             'missed_bouts', options.missed_bouts);
-        [groupMetrics, overallMetrics] = BANOSaggregateMetrics(fileMetrics);
+        if pooled
+            [groupMetrics, overallMetrics] = BANOSpoolComponents(fileComponents);
+        else
+            [groupMetrics, overallMetrics] = BANOSaggregateMetrics(fileMetrics);
+        end
         varargout{1} = groupMetrics;
         varargout{2} = overallMetrics;
 
@@ -85,9 +100,13 @@ function varargout = BANOS_score(data, varargin)
 
         tmpData.single_recording = {data, gt};
         [preprocessed, ~] = BANOSpreprocessData(tmpData);
-        fileMetrics       = BANOScalculateBANOSForEachFile(preprocessed, ...
+        [fileMetrics, fileComponents] = BANOScalculateBANOSForEachFile(preprocessed, ...
             'missed_bouts', options.missed_bouts);
-        varargout{1}      = fileMetrics.single_recording;
+        if pooled
+            varargout{1} = BANOSpoolComponents(fileComponents);
+        else
+            varargout{1} = fileMetrics.single_recording;
+        end
 
     else
         error('BANOS_score: first argument must be a cell array (single recording) or a struct (multiple recordings).');
