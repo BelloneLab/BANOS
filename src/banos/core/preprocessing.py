@@ -52,9 +52,9 @@ def preprocess_data(data_dict: dict[str, tuple[pd.DataFrame, pd.DataFrame]]) -> 
     """Preprocess prediction and ground truth DataFrames.
 
     Fills NaN with 0, drops non-binary columns, aligns headers.
-    Each NaN replacement and each dropped column (values other than 0 and 1,
-    or a column present on one side only) emits a UserWarning naming the file
-    and the column.
+    A UserWarning naming the file and the column is emitted for each column
+    whose NaN values are replaced by 0 (with their count) and for each dropped
+    column (values other than 0 and 1, or a column present on one side only).
 
     Parameters
     ----------

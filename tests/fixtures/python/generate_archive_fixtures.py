@@ -9,9 +9,12 @@ and is not regenerated: the code it records no longer changes.
 It was written by this script, which imported the 0.1.5 module from a copy at
 archive/python/BANOS/BANOS.py. That folder is not part of this repository, so
 the import below only works where the BANOS 0.1.5 package from PyPI (module
-BANOS.BANOS) is installed. Run that way from the project root, the script
-writes the committed file again, unchanged:
-    uv run --isolated --no-project --with "BANOS==0.1.5" python tests/fixtures/python/generate_archive_fixtures.py
+BANOS.BANOS) is installed. Run that way from the project root with Python 3.12
+or later, the script writes the committed file again, unchanged:
+    uv run --isolated --no-project --python 3.12 --with "BANOS==0.1.5" python tests/fixtures/python/generate_archive_fixtures.py
+With Python 3.11, about a hundred values differ in their last digit: the 0.1.5
+code averages with the built-in sum(), which adds floats with compensation
+from Python 3.12 on.
 """
 
 import json

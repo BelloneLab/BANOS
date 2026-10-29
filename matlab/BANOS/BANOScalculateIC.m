@@ -1,9 +1,10 @@
 function [ic, icTerms] = BANOScalculateIC(predSequence, gtBouts, varargin)
-    % Calculates the Intra-bout Continuity (IC) for each ground truth bout.
+    % Calculates the Intra-bout Continuity (IC) over the found ground truth bouts.
     %
-    % IC = 1 - (switches / boutLength) averaged over the found GT bouts.
+    % IC = 1 - (switches / boutLength) averaged over the found GT bouts, where
+    % boutLength = end - start is the number of frame pairs of the bout.
     % A GT bout is found when at least one of its frames is predicted (value 1).
-    % Zero-length bouts (boutLength = 0) are always excluded from the average.
+    % One-frame bouts (boutLength = 0) are always excluded from the average.
     % Returns NaN if there is no term (matches Python behaviour — NaN
     % propagates through nanmean).
     %
@@ -17,7 +18,7 @@ function [ic, icTerms] = BANOScalculateIC(predSequence, gtBouts, varargin)
     % Returns:
     % ic - The average of the terms, or NaN if undefined.
     % icTerms - Row vector of the terms, one per found GT bout longer than
-    %           zero, and 0 for each missed one with 'zero'.
+    %           one frame, and 0 for each missed one with 'zero'.
 
     options = BANOSparseOptions(varargin, {'missed_bouts'});
     icTerms = [];

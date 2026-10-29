@@ -61,8 +61,11 @@ def score(
         Ground truth DataFrame. Required when ``data`` is a single DataFrame.
     matching : {'greedy', 'optimal'}
         Bout matching algorithm.
-        'greedy': first-match wins (fast, default, backward compatible)
-        'optimal': Hungarian algorithm (scientifically optimal, requires scipy)
+        'greedy': each predicted bout, in time order, takes the first unmatched
+        GT bout it overlaps (default)
+        'optimal': Hungarian algorithm (scipy), the largest number of matched
+        pairs. On bouts read from 0/1 columns, as here, greedy matching already
+        reaches it, so both give the same results.
     missed_bouts : {'exclude', 'zero'}
         How SO, TP and IC count a GT bout with no predicted frame inside it.
         'exclude': left out of their averages (default)
@@ -92,15 +95,17 @@ def score(
     With ``aggregation='pooled'``, this 1.0/0.0 rule does not apply and
     ``overall_metrics`` averages the pooled behaviors, NaN excluded.
     A metric is NaN when it is undefined: precision when nothing is predicted,
-    recall when there is no GT bout (pooled), SO, TP and IC when they have no
-    term (no overlap, or no found GT bout).
+    recall when there is no GT bout (pooled), F1 when there is no bout at all
+    (pooled), SO, TP and IC when they have no term (no overlap, or no found GT
+    bout).
 
     An unknown ``matching``, ``missed_bouts`` or ``aggregation`` value raises
     ValueError before the data is read.
 
     The input goes through ``preprocess_data``: a ValueError is raised when the
     prediction and the ground truth of a file differ in length or a file has no
-    frame, and a UserWarning names each column dropped and each NaN replaced by 0.
+    frame, and a UserWarning, naming the file and the column, is emitted for each
+    column dropped and for each column whose NaN values are replaced by 0.
     """
     _check_options(matching, missed_bouts)
     if aggregation not in ("per_file", "pooled"):

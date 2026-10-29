@@ -100,6 +100,9 @@ def compute_behavior_metrics(
 ) -> dict:
     """Compute all BANOS metrics for each behavior column.
 
+    A behavior with no GT bout scores 1.0 on all six metrics if nothing is
+    predicted (correct absence) and 0.0 otherwise (false detection).
+
     ``missed_bouts`` sets how SO, TP and IC count a GT bout that no predicted
     bout overlaps: left out ('exclude', default) or a term equal to 0 ('zero').
 

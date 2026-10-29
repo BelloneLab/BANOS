@@ -1,6 +1,9 @@
 function [behaviorMetrics, behaviorComponents] = BANOScomputeBehaviorMetrics(predMatrix, gtMatrix, varargin)
     % Computes metrics for each behavior in the prediction and ground truth matrices.
     %
+    % A behavior with no GT bout scores 1.0 on all six metrics if nothing is
+    % predicted (correct absence) and 0.0 otherwise (false detection).
+    %
     % Name-value option:
     % 'missed_bouts' - how SO, TP and IC count a GT bout that no predicted
     %                  bout overlaps: 'exclude' (default) or 'zero'

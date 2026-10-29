@@ -31,8 +31,9 @@ function varargout = BANOS_score(data, varargin)
 %                     'pooled' scores each behavior once on the bout counts
 %                     and terms of all recordings (see BANOSpoolComponents).
 %                     The outputs have the same form in both modes.
-%   Option names and values are case-insensitive. An unknown name or value
-%   raises an error (BANOS:unknownOption, BANOS:invalidOption).
+%   Option names and values are case-insensitive. An unknown name or value,
+%   or a name without a value, raises an error (BANOS:unknownOption,
+%   BANOS:invalidOption, BANOS:missingOptionValue).
 %
 % NaN VALUES:
 %   With 'per_file', a behavior with no ground-truth bouts in a recording
@@ -41,8 +42,9 @@ function varargout = BANOS_score(data, varargin)
 %   With 'pooled', this 1.0/0.0 rule does not apply and overallMetrics
 %   averages the pooled behaviors with nanmean.
 %   A metric is NaN when it is undefined: precision when nothing is
-%   predicted, recall when there is no GT bout (pooled), SO, TP and IC when
-%   they have no term (no overlap, or no found GT bout).
+%   predicted, recall when there is no GT bout (pooled), F1 when there is no
+%   bout at all (pooled), SO, TP and IC when they have no term (no overlap,
+%   or no found GT bout).
 %
 % EXAMPLE — single recording:
 %   pred = [{'event1','event2'}; num2cell(predData)];
