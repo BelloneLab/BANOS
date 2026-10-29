@@ -11,7 +11,7 @@ Greedy matching: for each predicted bout, claim the first available GT bout
 that overlaps. Fast (O(n*m)) but can make suboptimal early commitments.
 
 Optimal matching: Hungarian algorithm (scipy.optimize.linear_sum_assignment)
-finds the globally best assignment, maximizing total overlap. Slower (O(n^3))
+finds the assignment with the most overlapping (matched) pairs. Slower (O(n^3))
 but scientifically preferable when bouts are densely overlapping.
 
 The test_optimal_beats_greedy test documents the exact scenario where greedy

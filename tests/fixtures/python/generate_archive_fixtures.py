@@ -1,10 +1,17 @@
-"""Run the ORIGINAL archive/python/BANOS/BANOS.py code against the 10 recordings.
+"""Record of how the frozen v0.1.5 fixture, golden_python_v015.json, was made.
 
-Saves output to tests/fixtures/golden_python_archive.json.
-This represents v0.1.5 behaviour (before the Phase 4 refactoring).
+The fixture holds the output of the original BANOS 0.1.5 code on the 10
+bundled recordings, each scored alone with that code's preprocess_data,
+calculate_banos_for_each_file and aggregate_metrics. It is an archive, kept
+for comparison with later versions (see tests/fixtures/compare_fixtures.py),
+and is not regenerated: the code it records no longer changes.
 
-Run from the project root:
-    python tests/fixtures/python/generate_archive_fixtures.py
+It was written by this script, which imported the 0.1.5 module from a copy at
+archive/python/BANOS/BANOS.py. That folder is not part of this repository, so
+the import below only works where the BANOS 0.1.5 package from PyPI (module
+BANOS.BANOS) is installed. Run that way from the project root, the script
+writes the committed file again, unchanged:
+    uv run --isolated --no-project --with "BANOS==0.1.5" python tests/fixtures/python/generate_archive_fixtures.py
 """
 
 import json
@@ -13,7 +20,8 @@ import sys
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Import from archive — NOT from the installed banos package
+# Import the 0.1.5 module (archive copy if present, else the installed
+# BANOS 0.1.5 package) — NOT the banos package of this repository
 # ---------------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "archive" / "python"))
@@ -69,6 +77,7 @@ if __name__ == "__main__":
     OUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(OUT_FILE, "w") as f:
         json.dump(results, f, indent=2)
+        f.write("\n")
 
     print(f"\nSaved archive fixtures to {OUT_FILE}")
     print(f"Total recordings: {len(results)}")

@@ -7,7 +7,7 @@ Preprocessing is the boundary between raw user data and the BANOS pipeline.
 If non-binary columns are silently kept, or headers are not aligned, every
 downstream metric will be computed on wrong data with no error raised.
 These tests verify that data cleaning is both correct and non-destructive
-(the caller's dict object must not be replaced or mutated unexpectedly).
+(the caller's dict and DataFrames are left unchanged).
 
 Key behaviours tested:
 - Binary detection: 0/1 int and float are accepted; 2, -1, or NaN are not.
@@ -111,19 +111,32 @@ def test_preprocess_data_fills_nan():
     assert gt_out["a"].isna().sum() == 0
 
 
-def test_preprocess_data_does_not_mutate_caller_dict():
-    """The caller's dict object must not be replaced — only internal copies are modified.
+@pytest.mark.parametrize("dirty_side", ["prediction", "ground truth"])
+def test_preprocess_data_does_not_mutate_caller_dict(dirty_side):
+    """The caller's dict and DataFrames are left unchanged — only copies are cleaned.
 
     WHY: user code often reuses the same dict across multiple calls. If preprocess_data
-    replaced the dict in-place, the second call would receive already-processed data,
-    causing subtle double-processing bugs.
+    modified the dict or its DataFrames in place, the second call would receive
+    already-processed data, causing subtle double-processing bugs.
+    One side needs every cleaning step (a NaN filled, a non-binary column dropped,
+    a column missing on the other side dropped) and the other side needs none. The
+    test runs with each side as the one to clean, so that a step applied in place to
+    the caller's prediction or to the caller's ground truth would show here.
     """
-    pred = pd.DataFrame({"a": [0, 1]})
-    gt = pd.DataFrame({"a": [1, 0]})
+    dirty = pd.DataFrame(
+        {"a": [0.0, float("nan"), 1.0], "prob": [0.2, 0.9, 0.1], "one_side": [0, 1, 1]}
+    )
+    clean = pd.DataFrame({"a": [1, 0, 0], "prob": [0, 1, 0]})
+    pred, gt = (dirty, clean) if dirty_side == "prediction" else (clean, dirty)
+    expected_pred, expected_gt = pred.copy(), gt.copy()
     original = {"f1": (pred, gt)}
-    original_id = id(original)
-    preprocess_data(original)
-    assert id(original) == original_id  # same dict object, not mutated internally
+    with pytest.warns(UserWarning):
+        result, _ = preprocess_data(original)
+    assert result is not original
+    assert list(original) == ["f1"]
+    assert original["f1"][0] is pred and original["f1"][1] is gt
+    pd.testing.assert_frame_equal(pred, expected_pred)
+    pd.testing.assert_frame_equal(gt, expected_gt)
 
 
 def test_preprocess_data_drops_non_logical():

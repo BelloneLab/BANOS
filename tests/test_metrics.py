@@ -14,9 +14,13 @@ NaN vs 0 policy:
   - No GT bout found (no predicted frame inside) -> IC has no bout to average -> NaN
 
   WHY NaN and not 0: returning 0 would bias the group/overall averages downward
-  by treating "undefined" as "worst possible score". nanmean() in aggregate_metrics
-  correctly excludes NaN values so they do not affect recordings where the behavior
-  actually occurred.
+  by treating "undefined" as "worst possible score"; aggregate_metrics leaves
+  NaN values out of its averages (nanmean). In the pipeline, a recording with no
+  GT bout of a behavior never gets these NaN: compute_behavior_metrics scores it
+  1.0 (nothing predicted) or 0.0 (false bouts). The NaN cells that reach the
+  averages come from recordings that have GT bouts: precision when nothing is
+  predicted, SO/TP when no bout overlaps, IC when no GT bout longer than one
+  frame is found.
 
   F1 is the exception: with no matched bout (TP = 0) but some predicted or
   missed bouts (FP + FN > 0) it is 0, the value of the count form
@@ -155,7 +159,8 @@ def test_so_returns_nan_for_empty_gt():
     """SO is undefined (NaN) when GT has no bouts — not 0.
 
     WHY: 'no GT bouts' means the metric is inapplicable, not that overlap is zero.
-    NaN causes aggregate_metrics to exclude this recording from the SO average.
+    The pipeline does not average this NaN: a recording with no GT bout of a
+    behavior scores 1.0 or 0.0 per file, and adds no SO term when pooled.
     """
     assert math.isnan(calculate_so([(0, 5)], []))
 

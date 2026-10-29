@@ -13,12 +13,15 @@ Pipeline stages tested together:
   preprocess_data -> calculate_components_for_each_file -> pool_components
   (the second chain is aggregation='pooled')
 
-The test_aggregate_metrics_excludes_nan test is critical: it confirms that
-recordings where a behavior has no GT bouts (NaN metrics) do NOT pull down
-the group/overall averages. Using nanmean() is the correct design choice.
+The test_aggregate_metrics_excludes_nan test confirms that NaN cells (a metric
+undefined for a behavior in a recording, e.g. precision when nothing is
+predicted there) are left out of the group/overall averages (nanmean).
+A recording with no GT bout of a behavior is not NaN with the default
+per-file aggregation: it scores 1.0 if nothing is predicted and 0.0 otherwise.
 """
 
 import math
+import tomllib
 import warnings
 from pathlib import Path
 
@@ -101,8 +104,10 @@ def test_score_all_metrics_in_range():
     """All finite metric values must lie in [0, 1]; NaN is allowed (undefined case).
 
     WHY: values outside [0, 1] indicate a formula error (e.g., division producing
-    values > 1). NaN is explicitly allowed because behaviors with no GT bouts
-    return NaN by design — that is the correct signal for 'not applicable'.
+    values > 1). NaN is explicitly allowed because a metric can be undefined for
+    a behavior that has GT bouts: precision when nothing is predicted, SO and TP
+    when no predicted bout overlaps a GT bout, IC when no GT bout longer than
+    one frame is found.
     """
     result = banos.score(PRED, GT)
     for behavior, metrics in result.items():
@@ -119,8 +124,8 @@ def test_score_invalid_matching_raises():
 def test_aggregate_metrics_excludes_nan():
     """NaN values in file metrics must be excluded from group and overall averages.
 
-    WHY: f2 has all-NaN metrics (behavior had no GT bouts in that recording).
-    If nanmean() were replaced by plain mean(), the average would be pulled toward
+    WHY: f2 has all-NaN metrics (every metric undefined for that behavior in that
+    recording). If NaN were averaged as 0, the average would be pulled toward
     0, making the system appear worse than it actually is. The result must equal
     only f1's values, as if f2 were never processed for that behavior.
     """
@@ -153,8 +158,15 @@ def test_aggregate_metrics_excludes_nan():
 
 
 def test_score_version():
-    assert isinstance(banos.__version__, str)
-    assert banos.__version__ != ""
+    """banos.__version__ is the version declared in pyproject.toml.
+
+    WHY: the version is written in both files; a release that bumps only one
+    of them would publish a package whose __version__ is wrong.
+    """
+    pyproject = Path(__file__).parent.parent / "pyproject.toml"
+    with open(pyproject, "rb") as f:
+        declared = tomllib.load(f)["project"]["version"]
+    assert banos.__version__ == declared
 
 
 FRAME_INDEXES = {

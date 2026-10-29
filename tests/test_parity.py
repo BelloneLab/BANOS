@@ -24,12 +24,17 @@ identical formulas in two languages can accumulate small differences.
 
 NaN HANDLING
 ------------
-Both Python and Matlab v0.2.0 return 1.0 for correct absence (both have no bouts)
-and 0.0 for false detection (machine predicts bouts, GT has none). No NaN expected
-for absent behaviors in v0.2.0. The _values_match() helper still handles None/NaN
-for any residual edge cases during Matlab JSON encoding.
+Both Python and Matlab return 1.0 for correct absence (both have no bouts)
+and 0.0 for false detection (machine predicts bouts, GT has none), so a
+behavior absent from a recording is never NaN with per-file aggregation.
+A metric is NaN where it is undefined, in both implementations: precision when
+nothing is predicted, SO and TP when no bout overlaps, IC when no GT bout longer
+than one frame is found (and, pooled, recall of a behavior with no GT bout).
+Matlab writes NaN as JSON null; _values_match() requires NaN on both sides or
+numbers on both sides.
 
-See also: tests/test_comparison_report.py for a visual HTML comparison table.
+See also: tests/fixtures/compare_fixtures.py for side-by-side tables of the
+fixture files (text or HTML).
 """
 
 import json
@@ -83,7 +88,7 @@ def _values_match(actual, expected) -> bool:
 
     Matlab encodes NaN via jsonencode as JSON null; Python's json.load() reads
     null as None. Both Python NaN and Matlab null/NaN are treated as equivalent
-    'undefined' values — a behavior with no GT bouts in both implementations.
+    'undefined' values; NaN on one side only is a mismatch.
     """
     expected_nan = expected is None or (isinstance(expected, float) and math.isnan(expected))
     actual_nan = actual is None or (isinstance(actual, float) and math.isnan(actual))
@@ -121,7 +126,10 @@ def test_parity_overall_metrics(n):
 
 @pytest.mark.parametrize("n", range(1, 11))
 def test_parity_group_metrics(n):
-    """Python per-behavior metrics must match Matlab output within 1e-6."""
+    """Python per-behavior metrics must match Matlab output within 1e-6.
+
+    Both must report the same behaviors: one missing on either side is a mismatch.
+    """
     rec_name = f"Recording_{n}"
     if rec_name not in _MATLAB_ALL:
         pytest.skip(f"{rec_name} not in Matlab fixture")
@@ -133,9 +141,11 @@ def test_parity_group_metrics(n):
     group, _ = aggregate_metrics(file_metrics)
 
     matlab_group = matlab_result.get("group_metrics", {})
+    assert set(group) == set(matlab_group), (
+        f"{rec_name} behaviors: Python only {sorted(set(group) - set(matlab_group))}, "
+        f"Matlab only {sorted(set(matlab_group) - set(group))}"
+    )
     for behavior, metrics in matlab_group.items():
-        if behavior not in group:
-            pytest.skip(f"Behavior '{behavior}' not in Python output for {rec_name}")
         for metric in METRICS:
             if metric not in metrics:
                 continue
