@@ -15,7 +15,7 @@
 pip install uv
 
 # Install the package in editable mode with dev dependencies
-uv sync --extra dev
+uv sync
 
 # Verify everything works
 uv run pytest -q

@@ -3,13 +3,15 @@ name = "banos"
 version = "1.0.0"
 description = "Behavior ANnOtation Score: ethological metrics for evaluating behavior annotation quality"
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
+authors = [{ name = "Benoît J. T. Girard" }]
+maintainers = [{ name = "Benoît J. T. Girard" }]
 keywords = ["behavior", "annotation", "ethology", "video", "scoring", "metrics"]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
   "Intended Audience :: Science/Research",
-  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -21,20 +23,14 @@ dependencies = [
   "numpy>=1.24",
   "pandas>=2.0",
   "scipy>=1.10",
-  "matplotlib>=3.7",
-  "seaborn>=0.12",
 ]
 
 [project.optional-dependencies]
-dev = [
-  "pytest>=7.4",
-  "pytest-cov>=4.1",
-  "pre-commit>=3.5",
-  "ruff>=0.4",
-]
 notebook = [
   "jupyter>=1.0",
   "nbformat>=5.9",
+  "matplotlib>=3.7",
+  "seaborn>=0.12",
 ]
 calms21 = [
   "tensorflow>=2.12",
@@ -48,11 +44,25 @@ Repository = "https://github.com/BelloneLab/BANOS"
 Issues = "https://github.com/BelloneLab/BANOS/issues"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27,<2"]  # 1.27 writes the SPDX license (License-Expression)
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/banos"]
+
+[tool.hatch.build.targets.sdist]
+# The package, its tests and the data they read; not the MATLAB code,
+# notebooks, Keras model, reports or images of the repository.
+include = [
+  "/src",
+  "/tests",
+  "/data/dataset_human_vs_human",
+  "/demo/quickstart.py",
+  "/README.md",
+  "/LICENSE",
+  "/CHANGELOG.md",
+]
+exclude = ["/tests/fixtures/matlab"]
 
 [tool.ruff]
 line-length = 100

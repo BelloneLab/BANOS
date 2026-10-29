@@ -224,11 +224,9 @@ name = "banos"
 version = "1.0.0"
 source = { editable = "." }
 dependencies = [
-    { name = "matplotlib" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "scipy" },
-    { name = "seaborn" },
 ]
 
 [package.optional-dependencies]
@@ -237,15 +235,11 @@ calms21 = [
     { name = "tensorflow" },
     { name = "tqdm" },
 ]
-dev = [
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-]
 notebook = [
     { name = "jupyter" },
+    { name = "matplotlib" },
     { name = "nbformat" },
+    { name = "seaborn" },
 ]
 
 [package.dev-dependencies]
@@ -263,21 +257,17 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "jupyter", marker = "extra == 'notebook'", specifier = ">=1.0" },
-    { name = "matplotlib", specifier = ">=3.7" },
+    { name = "matplotlib", marker = "extra == 'notebook'", specifier = ">=3.7" },
     { name = "nbformat", marker = "extra == 'notebook'", specifier = ">=5.9" },
     { name = "numpy", specifier = ">=1.24" },
     { name = "pandas", specifier = ">=2.0" },
-    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.5" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.4" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
     { name = "scikit-learn", marker = "extra == 'calms21'", specifier = ">=1.3" },
     { name = "scipy", specifier = ">=1.10" },
-    { name = "seaborn", specifier = ">=0.12" },
+    { name = "seaborn", marker = "extra == 'notebook'", specifier = ">=0.12" },
     { name = "tensorflow", marker = "extra == 'calms21'", specifier = ">=2.12" },
     { name = "tqdm", marker = "extra == 'calms21'", specifier = ">=4.65" },
 ]
-provides-extras = ["dev", "notebook", "calms21"]
+provides-extras = ["notebook", "calms21"]
 
 [package.metadata.requires-dev]
 dev = [
