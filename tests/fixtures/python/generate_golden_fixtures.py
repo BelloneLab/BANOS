@@ -8,6 +8,11 @@ Changes since the v0.2.0 fixtures (golden_python_v020.json, kept as an archive):
   2. IC averages over the real bouts that contain a predicted frame; missed
      bouts no longer score 1.0.
 
+Each "Recording_N" entry scores one recording alone, with the default options.
+The "all_recordings" entry scores the 10 recordings together with banos.score(),
+once per combination of missed_bouts and aggregation, keyed
+"<missed_bouts>_<aggregation>" (e.g. "zero_pooled").
+
 Run once to regenerate after a deliberate algorithm change:
     python tests/fixtures/python/generate_golden_fixtures.py
 
@@ -22,10 +27,16 @@ from pathlib import Path
 
 import pandas as pd
 
-from banos import aggregate_metrics, calculate_banos_for_each_file, preprocess_data
+from banos import aggregate_metrics, calculate_banos_for_each_file, preprocess_data, score
 
 DATASET_DIR = Path(__file__).parent.parent.parent.parent / "data" / "dataset_human_vs_human"
 OUT_FILE = Path(__file__).parent.parent / "golden_python_v110.json"
+OPTION_COMBINATIONS = [
+    ("exclude", "per_file"),
+    ("exclude", "pooled"),
+    ("zero", "per_file"),
+    ("zero", "pooled"),
+]
 
 
 def load_recording(n: int):
@@ -65,6 +76,17 @@ if __name__ == "__main__":
             "overall_metrics": make_json_serializable(overall_m),
         }
         print(f"Recording_{n}: {overall_m}")
+    n_recordings = len(results)
+
+    all_data = {f"Recording_{n}": load_recording(n) for n in range(1, 11)}
+    results["all_recordings"] = {}
+    for missed_bouts, aggregation in OPTION_COMBINATIONS:
+        group_m, overall_m = score(all_data, missed_bouts=missed_bouts, aggregation=aggregation)
+        results["all_recordings"][f"{missed_bouts}_{aggregation}"] = {
+            "group_metrics": make_json_serializable(group_m),
+            "overall_metrics": make_json_serializable(overall_m),
+        }
+        print(f"all_recordings {missed_bouts}_{aggregation}: {overall_m}")
 
     OUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(OUT_FILE, "w") as f:
@@ -72,4 +94,4 @@ if __name__ == "__main__":
         f.write("\n")
 
     print(f"\nSaved golden fixtures to {OUT_FILE}")
-    print(f"Total recordings: {len(results)}")
+    print(f"Total recordings: {n_recordings}")

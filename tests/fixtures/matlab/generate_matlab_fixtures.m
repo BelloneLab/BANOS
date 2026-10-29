@@ -1,6 +1,10 @@
 %% generate_matlab_fixtures.m
 % Generates a single JSON reference file from the Matlab BANOS implementation,
 % containing all 10 recordings in the same structure as golden_python_v110.json.
+% Each Recording_N entry scores one recording alone, with the default options.
+% The all_recordings entry scores the 10 recordings together with BANOS_score,
+% once per combination of 'missed_bouts' and 'aggregation', keyed
+% <missed_bouts>_<aggregation> (e.g. zero_pooled).
 %
 % Output: tests/fixtures/golden_matlab_v110.json
 %
@@ -63,8 +67,23 @@ for n = 1:10
     fprintf('Processed %s  (F1=%.4f, SO=%.4f, IC=%.4f)\n', ...
         recName, overallMetrics.f1_score, overallMetrics.so, overallMetrics.ic);
 
+    % Keep the recording for the all_recordings entry
+    allData.(recName) = {predMatrix, gtMatrix};
+
     % Reset for next recording
     clear singleData;
+end
+
+% Score the 10 recordings together, for every combination of options
+combinations = {'exclude', 'per_file'; 'exclude', 'pooled'; 'zero', 'per_file'; 'zero', 'pooled'};
+for c = 1:size(combinations, 1)
+    key = sprintf('%s_%s', combinations{c, 1}, combinations{c, 2});
+    [groupMetrics, overallMetrics] = BANOS_score(allData, ...
+        'missed_bouts', combinations{c, 1}, 'aggregation', combinations{c, 2});
+    allResults.all_recordings.(key).group_metrics   = groupMetrics;
+    allResults.all_recordings.(key).overall_metrics = overallMetrics;
+    fprintf('all_recordings %s  (F1=%.4f, SO=%.4f, IC=%.4f)\n', ...
+        key, overallMetrics.f1_score, overallMetrics.so, overallMetrics.ic);
 end
 
 % Save all recordings as a single JSON (matches golden_python_v110.json structure)

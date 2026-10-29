@@ -14,6 +14,11 @@ v1.1.0 behaviour. Changes since v0.2.0 that move values of the bundled data:
   2. IC averages over the real bouts that contain a predicted frame; missed
      bouts no longer score 1.0 (39 IC values, Recording_8 mount IC is NaN).
 
+Each "Recording_N" entry scores one recording alone, with the default options.
+The "all_recordings" entry scores the 10 recordings together, for each of the
+four combinations of missed_bouts and aggregation: these values pin the means
+across recordings and the pooled metrics.
+
 The archive fixtures (tests/fixtures/golden_python_v020.json and
 golden_python_v015.json) preserve the v0.2.0 and v0.1.5 behaviour for
 reference and comparison.
@@ -40,11 +45,17 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from banos import aggregate_metrics, calculate_banos_for_each_file, preprocess_data
+from banos import aggregate_metrics, calculate_banos_for_each_file, preprocess_data, score
 
 DATASET_DIR = Path(__file__).parent.parent / "data" / "dataset_human_vs_human"
 GOLDEN_FILE = Path(__file__).parent / "fixtures" / "golden_python_v110.json"
 TOLERANCE = 1e-10
+OPTION_COMBINATIONS = [
+    ("exclude", "per_file"),
+    ("exclude", "pooled"),
+    ("zero", "per_file"),
+    ("zero", "pooled"),
+]
 
 with open(GOLDEN_FILE) as f:
     GOLDEN = json.load(f)
@@ -113,3 +124,32 @@ def test_regression_group_metrics(n):
             assert _close(actual, expected), (
                 f"Recording_{n} {behavior} {metric}: expected {expected}, got {actual}"
             )
+
+
+@pytest.mark.parametrize("missed_bouts, aggregation", OPTION_COMBINATIONS)
+def test_regression_all_recordings(missed_bouts, aggregation):
+    """The 10 recordings scored together must match the golden values (tol=1e-10).
+
+    One case per combination of missed_bouts and aggregation. These pin the
+    means across recordings (per_file) and the pooled metrics, which the
+    per-recording goldens do not. Every behavior and metric is compared.
+    """
+    data = {f"Recording_{n}": load_recording(n) for n in range(1, 11)}
+    group, overall = score(data, missed_bouts=missed_bouts, aggregation=aggregation)
+
+    golden = GOLDEN["all_recordings"][f"{missed_bouts}_{aggregation}"]
+    assert set(group) == set(golden["group_metrics"])
+    for behavior, metrics in golden["group_metrics"].items():
+        assert set(group[behavior]) == set(metrics)
+        for metric, expected in metrics.items():
+            actual = group[behavior][metric]
+            assert _close(actual, expected), (
+                f"{missed_bouts}/{aggregation} {behavior} {metric}: "
+                f"expected {expected}, got {actual}"
+            )
+    assert set(overall) == set(golden["overall_metrics"])
+    for metric, expected in golden["overall_metrics"].items():
+        actual = overall[metric]
+        assert _close(actual, expected), (
+            f"{missed_bouts}/{aggregation} overall {metric}: expected {expected}, got {actual}"
+        )
