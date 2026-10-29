@@ -19,6 +19,8 @@ the group/overall averages. Using nanmean() is the correct design choice.
 """
 
 import math
+import warnings
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -447,6 +449,62 @@ def test_pooled_single_file_returns_dict_per_behavior():
     assert banos.score(PRED, GT, aggregation="pooled") == banos.score(PRED, GT)
     absent = banos.score(*_video([], []), aggregation="pooled")["evt"]
     assert all(math.isnan(value) for value in absent.values())
+
+
+def test_score_reports_dropped_columns_and_rejects_length_mismatch():
+    """score() no longer drops columns silently, and checks the lengths.
+
+    A probability column (0 or 0.2) is dropped with a warning naming the file
+    and the column, in single- and multi-file calls; before 1.1.0 the second
+    file silently left the mean. A prediction shorter or longer than its
+    ground truth raises ValueError (it used to raise KeyError or be scored).
+    """
+    pred, gt = _video(REAL_BOUTS)
+    probability = pred * 0.2
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        assert banos.score(probability, gt) == {}
+        group, _ = banos.score({"v1": (pred, gt), "v2": (probability, gt)})
+    assert [str(w.message) for w in caught if w.category is UserWarning] == [
+        "File 'single': prediction column 'evt' dropped (values other than 0 and 1).",
+        "File 'single': ground truth column 'evt' dropped (missing or invalid in the prediction).",
+        "File 'v2': prediction column 'evt' dropped (values other than 0 and 1).",
+        "File 'v2': ground truth column 'evt' dropped (missing or invalid in the prediction).",
+    ]
+    assert group["evt"]["f1_score"] == 1.0  # from v1 alone
+    with pytest.raises(ValueError, match="File 'single': the prediction has 45 frames"):
+        banos.score(pred.iloc[:45], gt)
+    with pytest.raises(ValueError, match="File 'v2': the prediction has 60 frames"):
+        banos.score({"v1": (pred, gt), "v2": (pred, gt.iloc[:45])})
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        pytest.param(lambda data: banos.preprocess_data(data), id="preprocess_data"),
+        pytest.param(lambda data: banos.score(*data["v"]), id="score-single"),
+        pytest.param(
+            lambda data: banos.score(*data["v"], aggregation="pooled"), id="score-single-pooled"
+        ),
+        pytest.param(lambda data: banos.score(data), id="score-several"),
+        pytest.param(
+            lambda data: banos.score(data, aggregation="pooled"), id="score-several-pooled"
+        ),
+    ],
+)
+def test_warnings_point_at_the_caller(call):
+    """Warnings name the caller's line, through preprocess_data() and every score() path.
+
+    Python shows a warning with the file and line it is attributed to; one
+    stack level too few would name a line of banos instead of this file.
+    """
+    pred, gt = _video(REAL_BOUTS)
+    data = {"v": (pred * 0.2, gt)}
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        call(data)
+    assert caught
+    assert {Path(w.filename).resolve() for w in caught} == {Path(__file__).resolve()}
 
 
 def test_score_invalid_aggregation_raises():

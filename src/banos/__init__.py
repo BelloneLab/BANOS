@@ -18,7 +18,7 @@ __version__ = "1.0.0"
 
 import pandas as pd
 
-from banos.core.preprocessing import preprocess_data
+from banos.core.preprocessing import _preprocess_data, preprocess_data
 from banos.pipeline import (
     _check_options,
     aggregate_metrics,
@@ -97,6 +97,10 @@ def score(
 
     An unknown ``matching``, ``missed_bouts`` or ``aggregation`` value raises
     ValueError before the data is read.
+
+    The input goes through ``preprocess_data``: a ValueError is raised when the
+    prediction and the ground truth of a file differ in length or a file has no
+    frame, and a UserWarning names each column dropped and each NaN replaced by 0.
     """
     _check_options(matching, missed_bouts)
     if aggregation not in ("per_file", "pooled"):
@@ -106,7 +110,7 @@ def score(
         if gt is None:
             raise ValueError("When 'data' is a DataFrame, 'gt' must be provided.")
         data_dict = {"single": (data, gt)}
-        data_dict, _ = preprocess_data(data_dict)
+        data_dict, _ = _preprocess_data(data_dict)
         if aggregation == "pooled":
             components = compute_behavior_components(
                 data_dict["single"][0],
@@ -124,7 +128,7 @@ def score(
         )
 
     # Multi-file path
-    data_dict, _ = preprocess_data(dict(data))
+    data_dict, _ = _preprocess_data(dict(data))
     if aggregation == "pooled":
         file_components = calculate_components_for_each_file(
             data_dict, matching=matching, missed_bouts=missed_bouts
