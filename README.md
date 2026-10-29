@@ -383,6 +383,10 @@ The preprint of this article is:
 }
 ```
 
+The same references are in
+[CITATION.cff](https://github.com/BelloneLab/BANOS/blob/main/CITATION.cff), which GitHub
+offers as "Cite this repository".
+
 ## Changelog
 
 See [CHANGELOG.md](https://github.com/BelloneLab/BANOS/blob/main/CHANGELOG.md) for release
