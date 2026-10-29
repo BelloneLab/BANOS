@@ -29,6 +29,9 @@ IC switch-counting range:
 
 import math
 
+import pandas as pd
+import pytest
+
 from banos.core.metrics import (
     calculate_ic,
     calculate_precision_recall_f1,
@@ -213,6 +216,27 @@ def test_all_switches():
 def test_switches_subset_range():
     # Only count within [1,3], not outside
     assert count_switches_within_bout([0, 1, 0, 1, 0], 1, 3) == 2
+
+
+SERIES_INDEXES = {
+    "1-based": [1, 2, 3, 4, 5],
+    "reversed": [4, 3, 2, 1, 0],
+    "float": [0.0, 0.04, 0.08, 0.12, 0.16],
+    "string": ["f0", "f1", "f2", "f3", "f4"],
+}
+
+
+@pytest.mark.parametrize("kind", SERIES_INDEXES)
+def test_switches_and_ic_read_series_by_position(kind):
+    """A Series is read by frame position; its index labels are ignored.
+
+    pred=[1,1,0,0,0], gt=(0,2): one switch (frames 1-2) in length 2 -> IC 0.5.
+    Read by label, the 1-based and float indexes raise KeyError and the
+    reversed one reads frames 4, 3, 2, which hold no switch.
+    """
+    pred = pd.Series([1, 1, 0, 0, 0], index=SERIES_INDEXES[kind])
+    assert count_switches_within_bout(pred, 0, 2) == 1
+    assert calculate_ic(pred, [(0, 2)]) == 0.5
 
 
 # --- calculate_ic ---

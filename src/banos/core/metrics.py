@@ -5,7 +5,13 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
 import pandas as pd
+
+
+def _by_position(sequence: pd.Series | np.ndarray | list) -> np.ndarray | list:
+    """Return ``sequence`` indexable by frame position (a Series gives its values)."""
+    return sequence.to_numpy() if isinstance(sequence, pd.Series) else sequence
 
 
 def identify_bouts(sequence: pd.Series | list) -> list[tuple[int, int]]:
@@ -88,12 +94,16 @@ def calculate_tp_metric(
     return sum(scores) / len(scores) if scores else float("nan")
 
 
-def count_switches_within_bout(pred_sequence: pd.Series | list, gt_start: int, gt_end: int) -> int:
+def count_switches_within_bout(
+    pred_sequence: pd.Series | np.ndarray | list, gt_start: int, gt_end: int
+) -> int:
     """Count label transitions within [gt_start, gt_end] (inclusive).
 
     Compares pred[i] with pred[i+1] for i in [gt_start, gt_end-1].
     This includes the transition at the last frame boundary (gt_end-1 → gt_end).
+    Frames are read by position: the index labels of a Series are ignored.
     """
+    pred_sequence = _by_position(pred_sequence)
     switches = 0
     for i in range(gt_start, gt_end):  # gt_end inclusive: checks pairs up to (gt_end-1, gt_end)
         if pred_sequence[i] != pred_sequence[i + 1]:
@@ -101,13 +111,17 @@ def count_switches_within_bout(pred_sequence: pd.Series | list, gt_start: int, g
     return switches
 
 
-def calculate_ic(pred_sequence: pd.Series | list, gt_bouts: list[tuple[int, int]]) -> float:
+def calculate_ic(
+    pred_sequence: pd.Series | np.ndarray | list, gt_bouts: list[tuple[int, int]]
+) -> float:
     """Intra-bout Continuity: 1 - (switches / gt_length) averaged over GT bouts.
 
+    Frames are read by position: the index labels of a Series are ignored.
     Returns NaN if there are no GT bouts.
     """
     if not gt_bouts:
         return float("nan")
+    pred_sequence = _by_position(pred_sequence)
     ic_scores = []
     for gt in gt_bouts:
         gt_length = gt[1] - gt[0]

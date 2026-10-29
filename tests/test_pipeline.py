@@ -149,6 +149,32 @@ def test_score_version():
     assert banos.__version__ != ""
 
 
+FRAME_INDEXES = {
+    "1-based": range(1, N_FRAMES + 1),
+    "reversed": range(N_FRAMES - 1, -1, -1),
+    "float": [frame / 30 for frame in range(N_FRAMES)],
+    "string": [f"frame_{frame}" for frame in range(N_FRAMES)],
+}
+
+
+@pytest.mark.parametrize("kind", FRAME_INDEXES)
+def test_score_reads_frames_by_position_whatever_the_index(kind):
+    """The DataFrame index is ignored: every metric reads the frames by position.
+
+    Real bouts (5,9), (25,29), (45,49); predicted (5,9), (25,27), (45,49).
+    The second real bout has one switch (frames 27-28) in length 4, so
+    IC = (1 + 3/4 + 1) / 3 = 11/12 with the default index, and must stay so
+    with frames numbered from 1, reversed labels, times in seconds or strings.
+    Read by label, IC was 2/3 (1-based), 1.0 (reversed) or a KeyError.
+    """
+    pred, gt = _video([(5, 9), (25, 27), (45, 49)])
+    expected = banos.score(pred, gt)
+    assert abs(expected["evt"]["ic"] - 11 / 12) < 1e-10
+
+    index = pd.Index(FRAME_INDEXES[kind])
+    assert banos.score(pred.set_axis(index), gt.set_axis(index)) == expected
+
+
 def test_file_with_only_false_bouts_scores_f1_zero():
     """A file whose predicted bouts all miss the real bouts scores F1 0 and stays in the mean.
 

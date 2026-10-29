@@ -60,7 +60,7 @@ def compute_behavior_metrics(
         precision, recall, f1_score = calculate_precision_recall_f1(n_tp, n_fp, n_fn)
         so = calculate_so(pred_bouts, gt_bouts)
         tp_m = calculate_tp_metric(pred_bouts, gt_bouts)
-        ic = calculate_ic(pred_matrix[behavior], gt_bouts)
+        ic = calculate_ic(pred_matrix[behavior].to_numpy(), gt_bouts)
         metrics[behavior] = {
             "precision": precision,
             "recall": recall,
