@@ -78,4 +78,8 @@ dev = [
     "pytest-cov>=4.1",
     "pre-commit>=3.5",
     "ruff>=0.4",
+    "mypy>=2.4.0",
+    # Stubs of the pandas and scipy versions in uv.lock (3.0 and 1.17)
+    "pandas-stubs>=3.0.5.260914,<3.1",
+    "scipy-stubs>=1.17.1.5,<1.18",
 ]

@@ -4,16 +4,17 @@
 from __future__ import annotations
 
 import warnings
+from collections.abc import Hashable
 
 import pandas as pd
 
 
 def is_logical_column(column: pd.Series) -> bool:
     """Return True if column contains only 0s and 1s."""
-    return column.isin([0, 1]).all()
+    return bool(column.isin([0, 1]).all())
 
 
-def drop_non_logical_columns(matrix: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+def drop_non_logical_columns(matrix: pd.DataFrame) -> tuple[pd.DataFrame, list[Hashable]]:
     """Drop columns that do not contain only binary (0/1) values.
 
     Returns

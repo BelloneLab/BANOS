@@ -7,8 +7,9 @@ Run from the project root:
 
 from pathlib import Path
 
-import banos
 import pandas as pd
+
+import banos
 
 DATASET = Path(__file__).parent.parent / "data" / "dataset_human_vs_human"
 
