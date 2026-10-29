@@ -1,8 +1,8 @@
 %% generate_matlab_fixtures.m
 % Generates a single JSON reference file from the Matlab BANOS implementation,
-% containing all 10 recordings in the same structure as golden_python_current.json.
+% containing all 10 recordings in the same structure as golden_python_v110.json.
 %
-% Output: tests/fixtures/golden_matlab_v020.json
+% Output: tests/fixtures/golden_matlab_v110.json
 %
 % Run from the project root using any of:
 %   matlab -batch "run('tests/fixtures/matlab/generate_matlab_fixtures.m')"
@@ -13,7 +13,7 @@ scriptDir = fileparts(mfilename('fullpath'));
 addpath(fullfile(scriptDir, '..', '..', '..', 'matlab', 'BANOS'));
 
 datasetDir = fullfile(scriptDir, '..', '..', '..', 'data', 'dataset_human_vs_human');
-outFile    = fullfile(scriptDir, '..', 'golden_matlab_v020.json');
+outFile    = fullfile(scriptDir, '..', 'golden_matlab_v110.json');
 
 fprintf('Generating Matlab BANOS fixtures...\n');
 fprintf('Dataset dir: %s\n', datasetDir);
@@ -67,12 +67,12 @@ for n = 1:10
     clear singleData;
 end
 
-% Save all recordings as a single JSON (matches golden_python_current.json structure)
+% Save all recordings as a single JSON (matches golden_python_v110.json structure)
 fid = fopen(outFile, 'w');
 if fid == -1
     error('Cannot open output file: %s', outFile);
 end
-fprintf(fid, '%s', jsonencode(allResults));
+fprintf(fid, '%s\n', jsonencode(allResults));
 fclose(fid);
 
 fprintf('\nDone! Saved to: %s\n', outFile);

@@ -29,11 +29,16 @@ def identify_bouts(sequence: pd.Series | list) -> list[tuple[int, int]]:
 def calculate_precision_recall_f1(n_tp: int, n_fp: int, n_fn: int) -> tuple[float, float, float]:
     """Compute Detection Accuracy: Precision, Recall, F1.
 
-    Returns NaN for any metric where the denominator is zero.
+    Precision and recall are NaN when their denominator is zero.
+    F1 is 0 when no bout is matched but some bouts were predicted or missed
+    (``n_tp == 0`` and ``n_fp + n_fn > 0``), and NaN only when all three
+    counts are zero.
     """
     precision = n_tp / (n_tp + n_fp) if (n_tp + n_fp) > 0 else float("nan")
     recall = n_tp / (n_tp + n_fn) if (n_tp + n_fn) > 0 else float("nan")
-    if not math.isnan(precision) and not math.isnan(recall) and (precision + recall) > 0:
+    if n_tp == 0 and n_fp + n_fn > 0:
+        f1_score = 0.0
+    elif not math.isnan(precision) and not math.isnan(recall) and (precision + recall) > 0:
         f1_score = 2 * precision * recall / (precision + recall)
     else:
         f1_score = float("nan")

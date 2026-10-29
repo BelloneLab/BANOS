@@ -1,11 +1,10 @@
 # tests/fixtures/python/generate_golden_fixtures.py
-"""Generate golden output fixtures from the current BANOS code (v0.2.0).
+"""Generate golden output fixtures from the current BANOS code (v1.1.0).
 
-These fixtures freeze the current (corrected) behaviour for regression testing.
-They reflect three improvements over archive v0.1.5:
-  1. Score 1.0 for correct absence (both GT and machine have no bouts).
-  2. Score 0.0 for false detection (machine predicts bouts when GT has none).
-  3. IC switch-counting correctly includes the last adjacent frame pair.
+These fixtures freeze the current behaviour for regression testing.
+Changes since the v0.2.0 fixtures (golden_python_v020.json, kept as an archive):
+  1. Detection F1 is 0, not NaN, when a recording has real bouts and no
+     predicted bout matches any of them.
 
 Run once to regenerate after a deliberate algorithm change:
     python tests/fixtures/python/generate_golden_fixtures.py
@@ -24,7 +23,7 @@ import pandas as pd
 from banos import aggregate_metrics, calculate_banos_for_each_file, preprocess_data
 
 DATASET_DIR = Path(__file__).parent.parent.parent.parent / "data" / "dataset_human_vs_human"
-OUT_FILE = Path(__file__).parent.parent / "golden_python_v020.json"
+OUT_FILE = Path(__file__).parent.parent / "golden_python_v110.json"
 
 
 def load_recording(n: int):
@@ -68,6 +67,7 @@ if __name__ == "__main__":
     OUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(OUT_FILE, "w") as f:
         json.dump(results, f, indent=2)
+        f.write("\n")
 
     print(f"\nSaved golden fixtures to {OUT_FILE}")
     print(f"Total recordings: {len(results)}")

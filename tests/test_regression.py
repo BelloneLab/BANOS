@@ -7,15 +7,14 @@ Golden fixtures freeze the exact numerical output of the pipeline.
 If any refactoring introduces an unintended numerical change — even a tiny
 floating-point difference — these tests catch it immediately.
 
-The golden fixtures in tests/fixtures/golden_python_v020.json represent the
-CORRECTED v0.2.0 behaviour (three improvements over v0.1.5):
-  1. Score 1.0 for correct absence (both GT and machine have no bouts).
-  2. Score 0.0 for false detection (machine predicts bouts when GT has none).
-  3. IC switch-counting covers all adjacent frame pairs within each GT bout
-     (the original code missed the last pair, giving inflated IC values).
+The golden fixtures in tests/fixtures/golden_python_v110.json represent the
+v1.1.0 behaviour. Changes since v0.2.0 that move values of the bundled data:
+  1. Detection F1 is 0, not NaN, when a recording has real bouts and no
+     predicted bout matches any of them (Recording_8 mount).
 
-The archive fixtures (tests/fixtures/golden_python_v015.json) preserve
-the original v0.1.5 behaviour for reference and comparison.
+The archive fixtures (tests/fixtures/golden_python_v020.json and
+golden_python_v015.json) preserve the v0.2.0 and v0.1.5 behaviour for
+reference and comparison.
 
 JSON null = Python NaN
 ----------------------
@@ -27,8 +26,8 @@ Updating fixtures
 -----------------
 If you make a deliberate algorithm change that affects output values, update
 the fixtures and document why:
-    python scripts/generate_golden_fixtures.py
-    # Then commit the updated tests/fixtures/golden_python_v020.json with a
+    python tests/fixtures/python/generate_golden_fixtures.py
+    # Then commit the updated tests/fixtures/golden_python_v110.json with a
     # clear commit message explaining the change.
 """
 
@@ -42,7 +41,7 @@ import pytest
 from banos import aggregate_metrics, calculate_banos_for_each_file, preprocess_data
 
 DATASET_DIR = Path(__file__).parent.parent / "data" / "dataset_human_vs_human"
-GOLDEN_FILE = Path(__file__).parent / "fixtures" / "golden_python_v020.json"
+GOLDEN_FILE = Path(__file__).parent / "fixtures" / "golden_python_v110.json"
 TOLERANCE = 1e-10
 
 with open(GOLDEN_FILE) as f:
@@ -77,7 +76,7 @@ def test_regression_overall_metrics(n):
     If this fails after a code change, the change affected numerical output.
     Decide whether the change is a bug fix or a regression, then either:
       - Fix the regression (no fixture update needed), OR
-      - Deliberately update: python scripts/generate_golden_fixtures.py
+      - Deliberately update: python tests/fixtures/python/generate_golden_fixtures.py
     """
     pred, gt = load_recording(n)
     data, _ = preprocess_data({f"Recording_{n}": (pred.copy(), gt.copy())})
@@ -96,9 +95,9 @@ def test_regression_overall_metrics(n):
 def test_regression_group_metrics(n):
     """Per-behavior metrics for each recording must match golden fixtures (tol=1e-10).
 
-    `null` in the JSON fixture means NaN — the behavior had no GT bouts in that
-    recording and the metric is undefined. The `_close()` helper treats `null`
-    and `float('nan')` as equivalent.
+    `null` in the JSON fixture means NaN — the metric is undefined for that
+    behavior in that recording (e.g. precision when nothing is predicted).
+    The `_close()` helper treats `null` and `float('nan')` as equivalent.
     """
     pred, gt = load_recording(n)
     data, _ = preprocess_data({f"Recording_{n}": (pred.copy(), gt.copy())})

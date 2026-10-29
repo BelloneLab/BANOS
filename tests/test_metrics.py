@@ -17,6 +17,10 @@ NaN vs 0 policy:
   correctly excludes NaN values so they do not affect recordings where the behavior
   actually occurred.
 
+  F1 is the exception: with no matched bout (TP = 0) but some predicted or
+  missed bouts (FP + FN > 0) it is 0, the value of the count form
+  2 TP / (2 TP + FP + FN). It is NaN only when TP = FP = FN = 0.
+
 IC switch-counting range:
   count_switches_within_bout uses range(gt_start, gt_end) — inclusive of gt_end-1,
   checking all adjacent pairs (i, i+1) up to (gt_end-1, gt_end). This was a bug
@@ -86,6 +90,29 @@ def test_prf1_balanced():
     assert abs(p - 2 / 3) < 1e-10
     assert abs(r - 2 / 3) < 1e-10
     assert abs(f1 - 2 / 3) < 1e-10
+
+
+def test_prf1_nothing_predicted_f1_is_zero():
+    """Real bouts, nothing predicted: precision is 0/0, but F1 is 0, not NaN."""
+    p, r, f1 = calculate_precision_recall_f1(0, 0, 3)
+    assert math.isnan(p)
+    assert r == 0.0
+    assert f1 == 0.0
+
+
+def test_prf1_only_false_bouts_f1_is_zero():
+    """Only false bouts and no real bout: recall is 0/0, but F1 is 0, not NaN."""
+    p, r, f1 = calculate_precision_recall_f1(0, 3, 0)
+    assert p == 0.0
+    assert math.isnan(r)
+    assert f1 == 0.0
+
+
+def test_prf1_false_and_missed_bouts_f1_is_zero():
+    """Predicted and real bouts that never overlap: P = R = 0 and F1 = 0."""
+    p, r, f1 = calculate_precision_recall_f1(0, 2, 2)
+    assert p == 0.0 and r == 0.0
+    assert f1 == 0.0
 
 
 # --- calculate_tiou ---
