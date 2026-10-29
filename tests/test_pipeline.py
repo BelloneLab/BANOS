@@ -205,6 +205,9 @@ def test_silent_model_on_bundled_data(all_recordings):
     mount 4/10 = 0.4, investigation 0, other 0; overall F1 = 9 cells of 40 =
     0.225. Before 1.1.0 the recordings with the behavior scored F1 NaN and left
     the means: attack, mount and overall F1 were 1.0.
+
+    IC has no found bout to average in any recording with the behavior, so
+    investigation and other (present in all 10) have IC NaN, not 1.0.
     """
     data = {f"Recording_{n}": (gt * 0, gt) for n, (_, gt) in all_recordings.items()}
     group, overall = banos.score(data)
@@ -212,3 +215,5 @@ def test_silent_model_on_bundled_data(all_recordings):
     for behavior, f1 in expected.items():
         assert abs(group[behavior]["f1_score"] - f1) < 1e-10, behavior
     assert abs(overall["f1_score"] - 0.225) < 1e-10
+    assert math.isnan(group["investigation"]["ic"])
+    assert math.isnan(group["other"]["ic"])

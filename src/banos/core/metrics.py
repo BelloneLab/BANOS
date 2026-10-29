@@ -114,10 +114,14 @@ def count_switches_within_bout(
 def calculate_ic(
     pred_sequence: pd.Series | np.ndarray | list, gt_bouts: list[tuple[int, int]]
 ) -> float:
-    """Intra-bout Continuity: 1 - (switches / gt_length) averaged over GT bouts.
+    """Intra-bout Continuity: 1 - (switches / gt_length) averaged over found GT bouts.
 
+    A GT bout is found when at least one of its frames is predicted (value 1).
+    Missed GT bouts are left out of the average, and so are one-frame GT bouts
+    (gt_length = end - start = 0, no frame pair to compare).
     Frames are read by position: the index labels of a Series are ignored.
-    Returns NaN if there are no GT bouts.
+    Returns NaN if there are no GT bouts or none of them is found and longer
+    than one frame.
     """
     if not gt_bouts:
         return float("nan")
@@ -125,7 +129,8 @@ def calculate_ic(
     ic_scores = []
     for gt in gt_bouts:
         gt_length = gt[1] - gt[0]
-        if gt_length > 0:
+        found = any(pred_sequence[i] == 1 for i in range(gt[0], gt[1] + 1))
+        if gt_length > 0 and found:
             switches = count_switches_within_bout(pred_sequence, gt[0], gt[1])
             ic_scores.append(1.0 - (switches / gt_length))
         else:

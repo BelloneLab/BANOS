@@ -11,6 +11,8 @@ The golden fixtures in tests/fixtures/golden_python_v110.json represent the
 v1.1.0 behaviour. Changes since v0.2.0 that move values of the bundled data:
   1. Detection F1 is 0, not NaN, when a recording has real bouts and no
      predicted bout matches any of them (Recording_8 mount).
+  2. IC averages over the real bouts that contain a predicted frame; missed
+     bouts no longer score 1.0 (39 IC values, Recording_8 mount IC is NaN).
 
 The archive fixtures (tests/fixtures/golden_python_v020.json and
 golden_python_v015.json) preserve the v0.2.0 and v0.1.5 behaviour for

@@ -11,6 +11,7 @@ NaN vs 0 policy:
   - No GT bouts -> recall denominator is 0 -> recall = NaN, not 0
   - No overlapping bouts -> SO/TP have no inputs -> NaN, not 0
   - Single-frame GT bout -> IC denominator is 0 -> NaN, not 0
+  - No GT bout found (no predicted frame inside) -> IC has no bout to average -> NaN
 
   WHY NaN and not 0: returning 0 would bias the group/overall averages downward
   by treating "undefined" as "worst possible score". nanmean() in aggregate_metrics
@@ -267,3 +268,18 @@ def test_ic_zero_length_bout_excluded():
     result = calculate_ic([1], [(0, 0)])
     # gt_length = 0, so this bout is skipped -> no valid scores -> NaN
     assert math.isnan(result)
+
+
+def test_ic_leaves_missed_bouts_out():
+    """IC averages over the found GT bouts only; a missed bout does not score 1.0.
+
+    pred=[1,1,0,0,0,0,0], gt=(0,2) and (4,6). Bout (0,2) is found: one switch
+    in length 2 -> 0.5. Bout (4,6) has no predicted frame and is left out, so
+    IC = 0.5 (it was (0.5 + 1.0) / 2 = 0.75 when a missed bout scored 1.0).
+    """
+    assert calculate_ic([1, 1, 0, 0, 0, 0, 0], [(0, 2), (4, 6)]) == 0.5
+
+
+def test_ic_nan_when_no_bout_is_found():
+    """Nothing predicted inside any GT bout: IC has nothing to average (NaN, not 1.0)."""
+    assert math.isnan(calculate_ic([0, 0, 0, 0, 0], [(0, 1), (3, 4)]))

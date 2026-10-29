@@ -5,6 +5,8 @@ These fixtures freeze the current behaviour for regression testing.
 Changes since the v0.2.0 fixtures (golden_python_v020.json, kept as an archive):
   1. Detection F1 is 0, not NaN, when a recording has real bouts and no
      predicted bout matches any of them.
+  2. IC averages over the real bouts that contain a predicted frame; missed
+     bouts no longer score 1.0.
 
 Run once to regenerate after a deliberate algorithm change:
     python tests/fixtures/python/generate_golden_fixtures.py
