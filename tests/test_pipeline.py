@@ -175,6 +175,76 @@ def test_score_reads_frames_by_position_whatever_the_index(kind):
     assert banos.score(pred.set_axis(index), gt.set_axis(index)) == expected
 
 
+def test_score_missed_bouts_zero():
+    """missed_bouts='zero' adds a 0 term per missed real bout to SO, TP and IC only.
+
+    Real bouts (5,9), (25,29), (45,49); predicted (5,9) and (26,29): the
+    third real bout is missed. Terms of the found bouts: SO 1 and 4/5,
+    TP 1 and 1/2, IC 1 and 3/4 (one switch, frames 25-26, in length 4).
+    exclude: SO 0.9, TP 0.75, IC 0.875; zero: SO 1.8/3, TP 1.5/3, IC 1.75/3.
+    Detection is the same in both modes: TP 2, FN 1 -> P 1, R 2/3, F1 0.8.
+    """
+    video = _video([(5, 9), (26, 29)])
+    exclude = banos.score(*video)["evt"]
+    zero = banos.score(*video, missed_bouts="zero")["evt"]
+    expected_exclude = {"so": 0.9, "tp": 0.75, "ic": 0.875}
+    expected_zero = {"so": 1.8 / 3, "tp": 1.5 / 3, "ic": 1.75 / 3}
+    for key in expected_exclude:
+        assert abs(exclude[key] - expected_exclude[key]) < 1e-10, key
+        assert abs(zero[key] - expected_zero[key]) < 1e-10, key
+    for key in ("precision", "recall", "f1_score"):
+        assert exclude[key] == zero[key]
+    assert abs(zero["f1_score"] - 0.8) < 1e-10
+
+    group, _ = banos.score({"v1": video, "v2": video}, missed_bouts="zero")
+    assert abs(group["evt"]["so"] - 0.6) < 1e-10
+
+
+def test_missed_bouts_zero_keeps_absent_behavior_rule():
+    """With no real bout in a file, 'zero' keeps 1.0 (nothing predicted) or 0.0 (false bouts)."""
+    absent = banos.score(*_video([], []), missed_bouts="zero")["evt"]
+    false_detection = banos.score(*_video([(5, 9)], []), missed_bouts="zero")["evt"]
+    assert set(absent.values()) == {1.0}
+    assert set(false_detection.values()) == {0.0}
+
+
+def test_score_invalid_missed_bouts_raises():
+    with pytest.raises(ValueError, match="Unknown missed_bouts option"):
+        banos.score(PRED, GT, missed_bouts="drop")
+
+
+NO_COLUMN = pd.DataFrame(index=range(N_FRAMES))
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        pytest.param(
+            lambda: banos.score(NO_COLUMN, NO_COLUMN, missed_bouts="drop"), id="no-column"
+        ),
+        pytest.param(lambda: banos.score(PRED * 0.5, GT, missed_bouts="drop"), id="all-dropped"),
+        pytest.param(lambda: banos.score({}, missed_bouts="drop"), id="no-file"),
+        pytest.param(
+            lambda: banos.compute_behavior_metrics(NO_COLUMN, NO_COLUMN, missed_bouts="drop"),
+            id="compute_behavior_metrics",
+        ),
+        pytest.param(
+            lambda: banos.calculate_banos_for_each_file({}, missed_bouts="drop"),
+            id="calculate_banos_for_each_file",
+        ),
+    ],
+)
+def test_invalid_missed_bouts_raises_without_any_column(call):
+    """An unknown missed_bouts raises even when no column reaches the metrics.
+
+    No behavior column, every column dropped by preprocessing (values 0 and
+    0.5), or no file at all: the option is checked on entry, not only by the
+    metric functions.
+    """
+    with pytest.raises(ValueError, match="Unknown missed_bouts option"):
+        call()
+
+
 def test_file_with_only_false_bouts_scores_f1_zero():
     """A file whose predicted bouts all miss the real bouts scores F1 0 and stays in the mean.
 

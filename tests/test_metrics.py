@@ -35,10 +35,13 @@ import pytest
 
 from banos.core.metrics import (
     calculate_ic,
+    calculate_ic_terms,
     calculate_precision_recall_f1,
     calculate_so,
+    calculate_so_terms,
     calculate_tiou,
     calculate_tp_metric,
+    calculate_tp_terms,
     count_switches_within_bout,
     identify_bouts,
 )
@@ -283,3 +286,91 @@ def test_ic_leaves_missed_bouts_out():
 def test_ic_nan_when_no_bout_is_found():
     """Nothing predicted inside any GT bout: IC has nothing to average (NaN, not 1.0)."""
     assert math.isnan(calculate_ic([0, 0, 0, 0, 0], [(0, 1), (3, 4)]))
+
+
+# --- missed_bouts: 'exclude' (default) or 'zero' ---
+#
+# GT bouts (0,4), (10,14), (20,24), (30,30); predicted bouts (0,4), (11,14).
+# (0,4) is found exactly, (10,14) is found one frame late, (20,24) and the
+# one-frame bout (30,30) are missed.
+
+MISSED_PRED_BOUTS = [(0, 4), (11, 14)]
+MISSED_GT_BOUTS = [(0, 4), (10, 14), (20, 24), (30, 30)]
+MISSED_PRED_SEQUENCE = [1] * 5 + [0] * 6 + [1] * 4 + [0] * 16  # frames 0..30
+
+
+def test_so_missed_bouts():
+    """SO terms: tIoU 1 and 4/5 for the found bouts, plus one 0 per missed bout with 'zero'.
+
+    exclude: (1 + 0.8) / 2 = 0.9; zero: (1 + 0.8 + 0 + 0) / 4 = 0.45.
+    """
+    assert calculate_so_terms(MISSED_PRED_BOUTS, MISSED_GT_BOUTS) == [1.0, 0.8]
+    assert calculate_so_terms(MISSED_PRED_BOUTS, MISSED_GT_BOUTS, missed_bouts="zero") == [
+        1.0,
+        0.8,
+        0.0,
+        0.0,
+    ]
+    assert abs(calculate_so(MISSED_PRED_BOUTS, MISSED_GT_BOUTS) - 0.9) < 1e-10
+    assert abs(calculate_so(MISSED_PRED_BOUTS, MISSED_GT_BOUTS, missed_bouts="zero") - 0.45) < 1e-10
+
+
+def test_tp_metric_missed_bouts():
+    """TP terms: 1 and 1/(1 + 1 + 0) = 0.5 for the found bouts, plus one 0 per missed bout.
+
+    exclude: (1 + 0.5) / 2 = 0.75; zero: (1 + 0.5 + 0 + 0) / 4 = 0.375.
+    """
+    assert calculate_tp_terms(MISSED_PRED_BOUTS, MISSED_GT_BOUTS) == [1.0, 0.5]
+    assert calculate_tp_terms(MISSED_PRED_BOUTS, MISSED_GT_BOUTS, missed_bouts="zero") == [
+        1.0,
+        0.5,
+        0.0,
+        0.0,
+    ]
+    assert calculate_tp_metric(MISSED_PRED_BOUTS, MISSED_GT_BOUTS) == 0.75
+    assert calculate_tp_metric(MISSED_PRED_BOUTS, MISSED_GT_BOUTS, missed_bouts="zero") == 0.375
+
+
+def test_ic_missed_bouts():
+    """IC terms: 1 for (0,4), 1 - 1/4 for (10,14) (switch at frames 10-11), 0 for (20,24) with 'zero'.
+
+    The missed one-frame bout (30,30) adds no IC term in either mode.
+    exclude: (1 + 0.75) / 2 = 0.875; zero: (1 + 0.75 + 0) / 3 = 1.75 / 3.
+    """
+    assert calculate_ic_terms(MISSED_PRED_SEQUENCE, MISSED_GT_BOUTS) == [1.0, 0.75]
+    assert calculate_ic_terms(MISSED_PRED_SEQUENCE, MISSED_GT_BOUTS, missed_bouts="zero") == [
+        1.0,
+        0.75,
+        0.0,
+    ]
+    assert calculate_ic(MISSED_PRED_SEQUENCE, MISSED_GT_BOUTS) == 0.875
+    zero = calculate_ic(MISSED_PRED_SEQUENCE, MISSED_GT_BOUTS, missed_bouts="zero")
+    assert abs(zero - 1.75 / 3) < 1e-10
+
+
+def test_missed_bouts_zero_when_nothing_overlaps():
+    """With 'zero', real bouts and no overlap give SO = TP = IC = 0 instead of NaN."""
+    pred_bouts, gt_bouts, pred_sequence = [(0, 1)], [(5, 8)], [1, 1, 0, 0, 0, 0, 0, 0, 0]
+    assert math.isnan(calculate_so(pred_bouts, gt_bouts))
+    assert calculate_so(pred_bouts, gt_bouts, missed_bouts="zero") == 0.0
+    assert math.isnan(calculate_tp_metric(pred_bouts, gt_bouts))
+    assert calculate_tp_metric(pred_bouts, gt_bouts, missed_bouts="zero") == 0.0
+    assert math.isnan(calculate_ic(pred_sequence, gt_bouts))
+    assert calculate_ic(pred_sequence, gt_bouts, missed_bouts="zero") == 0.0
+
+
+@pytest.mark.parametrize(
+    "function, first_argument",
+    [
+        (calculate_so, []),
+        (calculate_so_terms, []),
+        (calculate_tp_metric, []),
+        (calculate_tp_terms, []),
+        (calculate_ic, [0, 1]),
+        (calculate_ic_terms, [0, 1]),
+    ],
+)
+def test_invalid_missed_bouts_raises(function, first_argument):
+    """An unknown missed_bouts value raises ValueError, even without any bout."""
+    with pytest.raises(ValueError, match="Unknown missed_bouts option"):
+        function(first_argument, [], missed_bouts="drop")

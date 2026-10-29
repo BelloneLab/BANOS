@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 
 import numpy as np
 import pandas as pd
@@ -60,38 +61,98 @@ def calculate_tiou(pred_bout: tuple[int, int], gt_bout: tuple[int, int]) -> floa
     return intersection / union if union != 0 else 0.0
 
 
-def calculate_so(pred_bouts: list[tuple[int, int]], gt_bouts: list[tuple[int, int]]) -> float:
+def _check_missed_bouts(missed_bouts: str) -> None:
+    if missed_bouts not in ("exclude", "zero"):
+        raise ValueError(f"Unknown missed_bouts option: {missed_bouts!r}. Use 'exclude' or 'zero'.")
+
+
+def _mean(terms: list[float]) -> float:
+    return sum(terms) / len(terms) if terms else float("nan")
+
+
+def _pair_terms(
+    pred_bouts: list[tuple[int, int]],
+    gt_bouts: list[tuple[int, int]],
+    pair_term: Callable[[tuple[int, int], tuple[int, int]], float],
+    missed_bouts: str,
+) -> list[float]:
+    """Apply ``pair_term`` to every overlapping (pred, GT) bout pair, GT bout by GT bout.
+
+    A GT bout that no predicted bout overlaps is missed: it adds one term
+    equal to 0 with ``missed_bouts="zero"`` and no term with ``"exclude"``.
+    """
+    _check_missed_bouts(missed_bouts)
+    terms: list[float] = []
+    for gt in gt_bouts:
+        gt_terms = [
+            pair_term(pred, gt) for pred in pred_bouts if pred[1] >= gt[0] and pred[0] <= gt[1]
+        ]
+        if not gt_terms and missed_bouts == "zero":
+            gt_terms = [0.0]
+        terms.extend(gt_terms)
+    return terms
+
+
+def _boundary_precision(pred_bout: tuple[int, int], gt_bout: tuple[int, int]) -> float:
+    return 1.0 / (1.0 + abs(pred_bout[0] - gt_bout[0]) + abs(pred_bout[1] - gt_bout[1]))
+
+
+def calculate_so_terms(
+    pred_bouts: list[tuple[int, int]],
+    gt_bouts: list[tuple[int, int]],
+    *,
+    missed_bouts: str = "exclude",
+) -> list[float]:
+    """Segment Overlap terms: the tIoU of every overlapping bout pair.
+
+    A GT bout that no predicted bout overlaps adds no term
+    (``missed_bouts="exclude"``, default) or one term equal to 0 (``"zero"``).
+    """
+    return _pair_terms(pred_bouts, gt_bouts, calculate_tiou, missed_bouts)
+
+
+def calculate_so(
+    pred_bouts: list[tuple[int, int]],
+    gt_bouts: list[tuple[int, int]],
+    *,
+    missed_bouts: str = "exclude",
+) -> float:
     """Segment Overlap: average tIoU over all overlapping bout pairs.
 
-    Returns NaN if there are no GT bouts.
+    With ``missed_bouts="zero"``, each GT bout that no predicted bout overlaps
+    adds a 0 to the average (see ``calculate_so_terms``).
+    Returns NaN if there are no GT bouts, or no overlapping pair with "exclude".
     """
-    if not gt_bouts:
-        return float("nan")
-    scores = [
-        calculate_tiou(pred, gt)
-        for gt in gt_bouts
-        for pred in pred_bouts
-        if pred[1] >= gt[0] and pred[0] <= gt[1]
-    ]
-    return sum(scores) / len(scores) if scores else float("nan")
+    return _mean(calculate_so_terms(pred_bouts, gt_bouts, missed_bouts=missed_bouts))
+
+
+def calculate_tp_terms(
+    pred_bouts: list[tuple[int, int]],
+    gt_bouts: list[tuple[int, int]],
+    *,
+    missed_bouts: str = "exclude",
+) -> list[float]:
+    """Temporal Precision terms: 1 / (1 + |Δstart| + |Δend|) of every overlapping bout pair.
+
+    A GT bout that no predicted bout overlaps adds no term
+    (``missed_bouts="exclude"``, default) or one term equal to 0 (``"zero"``).
+    """
+    return _pair_terms(pred_bouts, gt_bouts, _boundary_precision, missed_bouts)
 
 
 def calculate_tp_metric(
-    pred_bouts: list[tuple[int, int]], gt_bouts: list[tuple[int, int]]
+    pred_bouts: list[tuple[int, int]],
+    gt_bouts: list[tuple[int, int]],
+    *,
+    missed_bouts: str = "exclude",
 ) -> float:
     """Temporal Precision: 1 / (1 + |Δstart| + |Δend|) averaged over overlapping bouts.
 
-    Returns NaN if there are no GT bouts.
+    With ``missed_bouts="zero"``, each GT bout that no predicted bout overlaps
+    adds a 0 to the average (see ``calculate_tp_terms``).
+    Returns NaN if there are no GT bouts, or no overlapping pair with "exclude".
     """
-    if not gt_bouts:
-        return float("nan")
-    scores = [
-        1.0 / (1.0 + abs(pred[0] - gt[0]) + abs(pred[1] - gt[1]))
-        for gt in gt_bouts
-        for pred in pred_bouts
-        if pred[1] >= gt[0] and pred[0] <= gt[1]
-    ]
-    return sum(scores) / len(scores) if scores else float("nan")
+    return _mean(calculate_tp_terms(pred_bouts, gt_bouts, missed_bouts=missed_bouts))
 
 
 def count_switches_within_bout(
@@ -111,29 +172,49 @@ def count_switches_within_bout(
     return switches
 
 
+def calculate_ic_terms(
+    pred_sequence: pd.Series | np.ndarray | list,
+    gt_bouts: list[tuple[int, int]],
+    *,
+    missed_bouts: str = "exclude",
+) -> list[float]:
+    """Intra-bout Continuity terms: 1 - (switches / gt_length) for each found GT bout.
+
+    A GT bout is found when at least one of its frames is predicted (value 1).
+    A missed GT bout adds no term (``missed_bouts="exclude"``, default) or one
+    term equal to 0 (``"zero"``). One-frame GT bouts (gt_length = end - start
+    = 0, no frame pair to compare) add no term.
+    Frames are read by position: the index labels of a Series are ignored.
+    """
+    _check_missed_bouts(missed_bouts)
+    pred_sequence = _by_position(pred_sequence)
+    terms: list[float] = []
+    for gt in gt_bouts:
+        gt_length = gt[1] - gt[0]
+        if gt_length == 0:
+            continue
+        if any(pred_sequence[i] == 1 for i in range(gt[0], gt[1] + 1)):
+            switches = count_switches_within_bout(pred_sequence, gt[0], gt[1])
+            terms.append(1.0 - (switches / gt_length))
+        elif missed_bouts == "zero":
+            terms.append(0.0)
+    return terms
+
+
 def calculate_ic(
-    pred_sequence: pd.Series | np.ndarray | list, gt_bouts: list[tuple[int, int]]
+    pred_sequence: pd.Series | np.ndarray | list,
+    gt_bouts: list[tuple[int, int]],
+    *,
+    missed_bouts: str = "exclude",
 ) -> float:
     """Intra-bout Continuity: 1 - (switches / gt_length) averaged over found GT bouts.
 
     A GT bout is found when at least one of its frames is predicted (value 1).
-    Missed GT bouts are left out of the average, and so are one-frame GT bouts
-    (gt_length = end - start = 0, no frame pair to compare).
+    Missed GT bouts are left out of the average (``missed_bouts="exclude"``,
+    default) or count as 0 (``"zero"``); one-frame GT bouts are always left
+    out (see ``calculate_ic_terms``).
     Frames are read by position: the index labels of a Series are ignored.
-    Returns NaN if there are no GT bouts or none of them is found and longer
-    than one frame.
+    Returns NaN if there is no term (no GT bout longer than one frame, or none
+    found with "exclude").
     """
-    if not gt_bouts:
-        return float("nan")
-    pred_sequence = _by_position(pred_sequence)
-    ic_scores = []
-    for gt in gt_bouts:
-        gt_length = gt[1] - gt[0]
-        found = any(pred_sequence[i] == 1 for i in range(gt[0], gt[1] + 1))
-        if gt_length > 0 and found:
-            switches = count_switches_within_bout(pred_sequence, gt[0], gt[1])
-            ic_scores.append(1.0 - (switches / gt_length))
-        else:
-            ic_scores.append(float("nan"))
-    valid = [v for v in ic_scores if not math.isnan(v)]
-    return sum(valid) / len(valid) if valid else float("nan")
+    return _mean(calculate_ic_terms(pred_sequence, gt_bouts, missed_bouts=missed_bouts))

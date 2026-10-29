@@ -18,6 +18,7 @@ __version__ = "1.0.0"
 
 import pandas as pd
 
+from banos.core.metrics import _check_missed_bouts
 from banos.core.preprocessing import preprocess_data
 from banos.pipeline import (
     aggregate_metrics,
@@ -40,6 +41,7 @@ def score(
     gt: pd.DataFrame | None = None,
     *,
     matching: str = "greedy",
+    missed_bouts: str = "exclude",
 ) -> dict | tuple[dict, dict]:
     """Compute BANOS metrics for one or multiple annotation pairs.
 
@@ -54,6 +56,11 @@ def score(
         Bout matching algorithm.
         'greedy': first-match wins (fast, default, backward compatible)
         'optimal': Hungarian algorithm (scientifically optimal, requires scipy)
+    missed_bouts : {'exclude', 'zero'}
+        How SO, TP and IC count a GT bout with no predicted frame inside it.
+        'exclude': left out of their averages (default)
+        'zero': one term equal to 0 in each of them
+        Precision, recall and F1 do not depend on this option.
 
     Returns
     -------
@@ -66,16 +73,23 @@ def score(
     -----
     Metrics return ``NaN`` when ground truth has no bouts for a given behavior.
     """
+    _check_missed_bouts(missed_bouts)
+
     if isinstance(data, pd.DataFrame):
         if gt is None:
             raise ValueError("When 'data' is a DataFrame, 'gt' must be provided.")
         data_dict = {"single": (data, gt)}
         data_dict, _ = preprocess_data(data_dict)
         return compute_behavior_metrics(
-            data_dict["single"][0], data_dict["single"][1], matching=matching
+            data_dict["single"][0],
+            data_dict["single"][1],
+            matching=matching,
+            missed_bouts=missed_bouts,
         )
 
     # Multi-file path
     data_dict, _ = preprocess_data(dict(data))
-    file_metrics = calculate_banos_for_each_file(data_dict, matching=matching)
+    file_metrics = calculate_banos_for_each_file(
+        data_dict, matching=matching, missed_bouts=missed_bouts
+    )
     return aggregate_metrics(file_metrics)

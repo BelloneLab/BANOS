@@ -25,6 +25,7 @@
 %   BANOSisLogicalColumn            - Test whether a column contains only 0 and 1.
 %   BANOSmatchHeaders               - Retain only common behavior columns in pred and GT.
 %   BANOSoverlaps                   - Test whether two bout intervals overlap.
+%   BANOSparseOptions               - Read and validate name-value options.
 %
 % Setup:
 %   setup                           - Add this toolbox to the MATLAB path.

@@ -1,5 +1,11 @@
-function behaviorMetrics = BANOScomputeBehaviorMetrics(predMatrix, gtMatrix)
+function behaviorMetrics = BANOScomputeBehaviorMetrics(predMatrix, gtMatrix, varargin)
     % Computes metrics for each behavior in the prediction and ground truth matrices.
+    %
+    % Name-value option:
+    % 'missed_bouts' - how SO, TP and IC count a GT bout that no predicted
+    %                  bout overlaps: 'exclude' (default) or 'zero'
+    %                  (see BANOScalculateSO).
+    options = BANOSparseOptions(varargin, {'missed_bouts'});
     behaviorMetrics = struct();
 
     for behavior = 1:size(predMatrix, 2)
@@ -10,9 +16,10 @@ function behaviorMetrics = BANOScomputeBehaviorMetrics(predMatrix, gtMatrix)
         if ~isempty(gtBouts)
             [tp, fp, fn] = BANOScalculateTpFpFn(predBouts, gtBouts);
             [precision, recall, f1] = BANOScalculatePrecisionRecallF1(tp, fp, fn);
-            so = BANOScalculateSO(predBouts, gtBouts);
-            tp = BANOScalculateTP(predBouts, gtBouts);
-            ic = BANOScalculateIC(cell2mat(predMatrix(2:end, behavior)), gtBouts);
+            so = BANOScalculateSO(predBouts, gtBouts, 'missed_bouts', options.missed_bouts);
+            tp = BANOScalculateTP(predBouts, gtBouts, 'missed_bouts', options.missed_bouts);
+            ic = BANOScalculateIC(cell2mat(predMatrix(2:end, behavior)), gtBouts, ...
+                'missed_bouts', options.missed_bouts);
         elseif isempty(predBouts)
             % Correct absence: system correctly detected nothing
             precision = 1.0; recall = 1.0; f1 = 1.0;

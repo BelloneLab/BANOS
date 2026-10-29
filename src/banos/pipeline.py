@@ -9,6 +9,7 @@ import pandas as pd
 
 from banos.core.matching import calculate_tp_fp_fn
 from banos.core.metrics import (
+    _check_missed_bouts,
     calculate_ic,
     calculate_precision_recall_f1,
     calculate_so,
@@ -21,13 +22,19 @@ def compute_behavior_metrics(
     pred_matrix: pd.DataFrame,
     gt_matrix: pd.DataFrame,
     matching: str = "greedy",
+    *,
+    missed_bouts: str = "exclude",
 ) -> dict:
     """Compute all BANOS metrics for each behavior column.
+
+    ``missed_bouts`` sets how SO, TP and IC count a GT bout that no predicted
+    bout overlaps: left out ('exclude', default) or a term equal to 0 ('zero').
 
     Returns
     -------
     {behavior: {precision, recall, f1_score, so, tp, ic}}
     """
+    _check_missed_bouts(missed_bouts)
     metrics: dict = {}
     for behavior in pred_matrix.columns:
         pred_bouts = identify_bouts(pred_matrix[behavior])
@@ -58,9 +65,9 @@ def compute_behavior_metrics(
 
         n_tp, n_fp, n_fn = calculate_tp_fp_fn(pred_bouts, gt_bouts, matching=matching)
         precision, recall, f1_score = calculate_precision_recall_f1(n_tp, n_fp, n_fn)
-        so = calculate_so(pred_bouts, gt_bouts)
-        tp_m = calculate_tp_metric(pred_bouts, gt_bouts)
-        ic = calculate_ic(pred_matrix[behavior].to_numpy(), gt_bouts)
+        so = calculate_so(pred_bouts, gt_bouts, missed_bouts=missed_bouts)
+        tp_m = calculate_tp_metric(pred_bouts, gt_bouts, missed_bouts=missed_bouts)
+        ic = calculate_ic(pred_matrix[behavior].to_numpy(), gt_bouts, missed_bouts=missed_bouts)
         metrics[behavior] = {
             "precision": precision,
             "recall": recall,
@@ -72,10 +79,13 @@ def compute_behavior_metrics(
     return metrics
 
 
-def calculate_banos_for_each_file(preprocessed_data: dict, matching: str = "greedy") -> dict:
+def calculate_banos_for_each_file(
+    preprocessed_data: dict, matching: str = "greedy", *, missed_bouts: str = "exclude"
+) -> dict:
     """Compute BANOS metrics for each file in the preprocessed data dict."""
+    _check_missed_bouts(missed_bouts)
     return {
-        file_name: compute_behavior_metrics(pred, gt, matching=matching)
+        file_name: compute_behavior_metrics(pred, gt, matching=matching, missed_bouts=missed_bouts)
         for file_name, (pred, gt) in preprocessed_data.items()
     }
 

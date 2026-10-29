@@ -20,8 +20,14 @@ function varargout = BANOS_score(data, varargin)
 %   overallMetrics (single average across all behaviors and recordings).
 %
 % NAME-VALUE OPTIONS:
-%   'matching'  - 'greedy' (default). 'optimal' is not yet implemented in
-%                 MATLAB; use the Python package for optimal matching.
+%   'matching'      - 'greedy' (default). 'optimal' is not yet implemented in
+%                     MATLAB; use the Python package for optimal matching.
+%   'missed_bouts'  - how SO, TP and IC count a GT bout with no predicted
+%                     frame inside it: 'exclude' (default) leaves it out of
+%                     their averages, 'zero' adds a term equal to 0 to each.
+%                     Precision, recall and F1 do not depend on it.
+%   Option names and values are case-insensitive. An unknown name or value
+%   raises an error (BANOS:unknownOption, BANOS:invalidOption).
 %
 % NaN VALUES:
 %   A behavior with no ground-truth bouts returns NaN for all metrics.
@@ -44,24 +50,19 @@ function varargout = BANOS_score(data, varargin)
 %           BANOSaggregateMetrics, Contents
 
     % --- Parse name-value options ------------------------------------------
-    matching = 'greedy';
-    i = 1;
-    while i <= length(varargin)
-        if ischar(varargin{i}) || isstring(varargin{i})
-            key = lower(char(varargin{i}));
-            if strcmp(key, 'matching')
-                if i + 1 > length(varargin)
-                    error('BANOS_score: ''matching'' option requires a value.');
-                end
-                matching = lower(char(varargin{i + 1}));
-                i = i + 2;
-                continue;
-            end
+    % Single recording: the first cell array argument is the ground truth;
+    % the remaining arguments are name-value options.
+    gt = [];
+    if iscell(data)
+        gtIndex = find(cellfun(@iscell, varargin), 1);
+        if ~isempty(gtIndex)
+            gt = varargin{gtIndex};
+            varargin(gtIndex) = [];
         end
-        i = i + 1;
     end
+    options = BANOSparseOptions(varargin, {'matching', 'missed_bouts'});
 
-    if strcmp(matching, 'optimal')
+    if strcmp(options.matching, 'optimal')
         error('BANOS_score: optimal matching is not yet implemented in MATLAB. Use the Python package (banos.score(..., matching=''optimal'')).');
     end
 
@@ -69,28 +70,23 @@ function varargout = BANOS_score(data, varargin)
     if isstruct(data)
         % Multi-recording: data is already a properly formatted struct
         [preprocessed, ~]          = BANOSpreprocessData(data);
-        fileMetrics                 = BANOScalculateBANOSForEachFile(preprocessed);
+        fileMetrics                 = BANOScalculateBANOSForEachFile(preprocessed, ...
+            'missed_bouts', options.missed_bouts);
         [groupMetrics, overallMetrics] = BANOSaggregateMetrics(fileMetrics);
         varargout{1} = groupMetrics;
         varargout{2} = overallMetrics;
 
     elseif iscell(data)
-        % Single-recording: data = pred cell array, varargin{1} = gt cell array
-        % (after matching option parsing, the first non-option arg is gt)
-        gt = [];
-        for j = 1:length(varargin)
-            if iscell(varargin{j})
-                gt = varargin{j};
-                break;
-            end
-        end
+        % Single-recording: data = pred cell array, gt = first cell array in
+        % varargin (taken out above, before the options were parsed)
         if isempty(gt)
             error('BANOS_score: single-recording mode requires two cell array arguments: BANOS_score(pred, gt).');
         end
 
         tmpData.single_recording = {data, gt};
         [preprocessed, ~] = BANOSpreprocessData(tmpData);
-        fileMetrics       = BANOScalculateBANOSForEachFile(preprocessed);
+        fileMetrics       = BANOScalculateBANOSForEachFile(preprocessed, ...
+            'missed_bouts', options.missed_bouts);
         varargout{1}      = fileMetrics.single_recording;
 
     else
