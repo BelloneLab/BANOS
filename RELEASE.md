@@ -31,7 +31,9 @@ uv lock
 
 # 2. Date the CHANGELOG.md entry
 
-# 3. Commit, open a pull request, and merge it once CI is green
+# 3. Commit, open a pull request, and merge it once CI is green, as a single
+#    squashed commit whose subject is "chore: release vX.Y.Z (#N)", N being
+#    the pull request number, and whose body is empty
 git commit -am "chore: release vX.Y.Z"
 
 # 4. Tag the merged commit on main
@@ -40,6 +42,10 @@ git tag -a vX.Y.Z origin/main -m "BANOS X.Y.Z"
 
 # 5. Push the tag — this triggers the publish workflow
 git push origin vX.Y.Z
+
+# 6. Once the package is on PyPI, create the GitHub release for the tag,
+#    with the CHANGELOG.md entry of the version as notes (notes.md)
+gh release create vX.Y.Z --verify-tag --title "vX.Y.Z" --notes-file notes.md
 ```
 
 The `publish.yml` workflow:

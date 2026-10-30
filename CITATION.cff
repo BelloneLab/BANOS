@@ -4,6 +4,7 @@ title: BANOS
 abstract: "Behavior ANnOtation Score: ethological metrics for evaluating behavior annotation quality."
 type: software
 version: 1.1.0
+date-released: 2026-10-30
 license: MIT
 repository-code: "https://github.com/BelloneLab/BANOS"
 authors:

@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.1.0] — Unreleased
+## [1.1.0] — 2026-10-30
 
 Two metrics are corrected (detection F1 and IC), two options are added (`missed_bouts` and
 `aggregation`), and invalid input now raises an error or a warning. With the default
