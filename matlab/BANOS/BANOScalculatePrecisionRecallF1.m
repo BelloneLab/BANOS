@@ -5,7 +5,7 @@ function [precision, recall, f1] = BANOScalculatePrecisionRecallF1(tp, fp, fn)
     % matching Python behaviour. F1 is 0 when no bout is matched but some
     % bouts were predicted or missed (TP = 0 and FP + FN > 0), and NaN only
     % when all three counts are zero.
-    % NaN values propagate correctly through BANOSaggregateMetrics (nanmean).
+    % BANOSaggregateMetrics leaves NaN values out of its means.
     %
     % Arguments:
     % tp - Count of True Positives (matched bout pairs).

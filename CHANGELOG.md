@@ -85,7 +85,9 @@ options and valid input, precision, recall, SO and TP are unchanged.
   `BANOS:lengthMismatch`, `BANOS:noFrame`, `BANOS:nanReplaced`, `BANOS:columnDropped`).
   Options are stricter: an unknown option name, which was ignored, and an unknown
   `'matching'` value, which was treated as greedy, raise an error (`BANOS:unknownOption`,
-  `BANOS:missingOptionValue`, `BANOS:invalidOption`).
+  `BANOS:missingOptionValue`, `BANOS:invalidOption`). The other errors of `BANOS_score`
+  get identifiers too: `BANOS:optimalNotImplemented`, `BANOS:missingGroundTruth` and
+  `BANOS:invalidData`.
 - **Imports.** `calculate_so`, `calculate_tp_metric` and `calculate_ic` are no longer
   importable from `banos.pipeline`, which only used them; import them from `banos.core`.
 - **Packaging.** matplotlib and seaborn move from the runtime dependencies to the
@@ -122,6 +124,9 @@ options and valid input, precision, recall, SO and TP are unchanged.
   compares `banos.__version__` with the version in `pyproject.toml`.
 - Type errors reported by mypy: `is_logical_column` returns a Python `bool`, and
   `drop_non_logical_columns` is annotated with the column labels it returns.
+- The MATLAB code averaged with `nanmean`, a function of the Statistics and Machine
+  Learning Toolbox, so scoring several recordings needed that toolbox. It now uses
+  `mean(..., 'omitnan')` of base MATLAB, which gives the same values.
 - `SECURITY.md` said that BANOS reads CSV files (it reads no file: it takes DataFrames or
   MATLAB cell arrays) and that `uv.lock` pins the dependencies users get (it pins the
   development and CI environment). `SETUP.md` said to allow all actions (the repository

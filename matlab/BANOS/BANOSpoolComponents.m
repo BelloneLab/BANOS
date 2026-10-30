@@ -16,7 +16,8 @@ function [groupMetrics, overallMetrics] = BANOSpoolComponents(fileComponents)
     %
     % Returns:
     % groupMetrics - Pooled metrics for each behavior.
-    % overallMetrics - Mean of the pooled metrics over the behaviors (nanmean).
+    % overallMetrics - Mean of the pooled metrics over the behaviors, NaN left
+    %                  out (mean with 'omitnan').
 
     pooled = struct();
     fileNames = fieldnames(fileComponents);
@@ -64,6 +65,6 @@ function [groupMetrics, overallMetrics] = BANOSpoolComponents(fileComponents)
     end
 
     for k = 1:length(metricFields)
-        overallMetrics.(metricFields{k}) = nanmean(overallMetrics.(metricFields{k}));
+        overallMetrics.(metricFields{k}) = mean(overallMetrics.(metricFields{k}), 'omitnan');
     end
 end

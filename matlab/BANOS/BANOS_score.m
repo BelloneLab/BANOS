@@ -35,12 +35,20 @@ function varargout = BANOS_score(data, varargin)
 %   or a name without a value, raises an error (BANOS:unknownOption,
 %   BANOS:invalidOption, BANOS:missingOptionValue).
 %
+% ERRORS:
+%   BANOS:optimalNotImplemented - 'matching', 'optimal' (Python only).
+%   BANOS:missingGroundTruth    - a single prediction without its ground truth.
+%   BANOS:invalidData           - a first argument that is neither a cell
+%                                 array nor a struct.
+%   BANOSpreprocessData raises and warns about the data itself.
+%
 % NaN VALUES:
 %   With 'per_file', a behavior with no ground-truth bouts in a recording
 %   scores 1.0 on all metrics if nothing is predicted there and 0.0
-%   otherwise; groupMetrics and overallMetrics average with nanmean.
+%   otherwise; groupMetrics and overallMetrics average with
+%   mean(..., 'omitnan'), leaving NaN out.
 %   With 'pooled', this 1.0/0.0 rule does not apply and overallMetrics
-%   averages the pooled behaviors with nanmean.
+%   averages the pooled behaviors, leaving NaN out.
 %   A metric is NaN when it is undefined: precision when nothing is
 %   predicted, recall when there is no GT bout (pooled), F1 when there is no
 %   bout at all (pooled), SO, TP and IC when they have no term (no overlap,
@@ -76,7 +84,7 @@ function varargout = BANOS_score(data, varargin)
     pooled = strcmp(options.aggregation, 'pooled');
 
     if strcmp(options.matching, 'optimal')
-        error('BANOS_score: optimal matching is not yet implemented in MATLAB. Use the Python package (banos.score(..., matching=''optimal'')).');
+        error('BANOS:optimalNotImplemented', 'BANOS_score: optimal matching is not yet implemented in MATLAB. Use the Python package (banos.score(..., matching=''optimal'')).');
     end
 
     % --- Detect single vs multi-recording mode ----------------------------
@@ -97,7 +105,7 @@ function varargout = BANOS_score(data, varargin)
         % Single-recording: data = pred cell array, gt = first cell array in
         % varargin (taken out above, before the options were parsed)
         if isempty(gt)
-            error('BANOS_score: single-recording mode requires two cell array arguments: BANOS_score(pred, gt).');
+            error('BANOS:missingGroundTruth', 'BANOS_score: single-recording mode requires two cell array arguments: BANOS_score(pred, gt).');
         end
 
         tmpData.single_recording = {data, gt};
@@ -111,6 +119,6 @@ function varargout = BANOS_score(data, varargin)
         end
 
     else
-        error('BANOS_score: first argument must be a cell array (single recording) or a struct (multiple recordings).');
+        error('BANOS:invalidData', 'BANOS_score: first argument must be a cell array (single recording) or a struct (multiple recordings).');
     end
 end

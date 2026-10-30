@@ -30,7 +30,7 @@ function [so, soTerms] = BANOScalculateSO(predBouts, gtBouts, varargin)
         end
     end
     % Return NaN if there is no term (matches Python behaviour).
-    % NaN propagates correctly through BANOSaggregateMetrics (nanmean).
+    % BANOSaggregateMetrics leaves NaN out of its means.
     if isempty(soTerms)
         so = NaN;
     else

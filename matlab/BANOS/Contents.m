@@ -7,7 +7,7 @@
 % Pipeline functions:
 %   BANOSpreprocessData             - Fill NaN, drop non-binary columns, align headers.
 %   BANOScalculateBANOSForEachFile  - Compute metrics for each recording.
-%   BANOSaggregateMetrics           - Average metrics across recordings (nanmean).
+%   BANOSaggregateMetrics           - Average metrics across recordings (NaN left out).
 %   BANOSpoolComponents             - Pool bout counts and terms across recordings.
 %   BANOScomputeBehaviorMetrics     - Per-behavior metric computation for one recording.
 %

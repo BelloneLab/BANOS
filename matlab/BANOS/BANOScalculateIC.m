@@ -5,8 +5,8 @@ function [ic, icTerms] = BANOScalculateIC(predSequence, gtBouts, varargin)
     % boutLength = end - start is the number of frame pairs of the bout.
     % A GT bout is found when at least one of its frames is predicted (value 1).
     % One-frame bouts (boutLength = 0) are always excluded from the average.
-    % Returns NaN if there is no term (matches Python behaviour — NaN
-    % propagates through nanmean).
+    % Returns NaN if there is no term (matches Python behaviour — the means
+    % over recordings and behaviors leave NaN out).
     %
     % Arguments:
     % predSequence - The sequence of predictions (1-based index vector).

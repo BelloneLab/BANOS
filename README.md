@@ -290,7 +290,8 @@ Import the metric functions from `banos.core`.
 
 ## MATLAB
 
-A MATLAB implementation is provided in `matlab/BANOS/`. Usage mirrors the Python API.
+A MATLAB implementation is provided in `matlab/BANOS/`. It needs base MATLAB only, no
+toolbox. Usage mirrors the Python API.
 
 ```matlab
 % Add the toolbox to the path for this session
@@ -314,8 +315,9 @@ tests compare the Python results with golden values written by the MATLAB code, 
 1e-6. MATLAB uses greedy matching only (`'matching', 'optimal'` raises an error). A
 single recording is named `single_recording` in messages, and errors and warnings carry
 identifiers: `BANOS:lengthMismatch`, `BANOS:noFrame`, `BANOS:nanReplaced`,
-`BANOS:columnDropped`, `BANOS:unknownOption`, `BANOS:missingOptionValue` and
-`BANOS:invalidOption`. `BANOScalculateBANOSForEachFile` returns the components of each
+`BANOS:columnDropped`, `BANOS:unknownOption`, `BANOS:missingOptionValue`,
+`BANOS:invalidOption`, `BANOS:optimalNotImplemented`, `BANOS:missingGroundTruth` and
+`BANOS:invalidData`. `BANOScalculateBANOSForEachFile` returns the components of each
 recording as a second output, and `BANOSpoolComponents` pools them.
 
 See [`demo/tutorial_matlab.m`](https://github.com/BelloneLab/BANOS/blob/main/demo/tutorial_matlab.m)
