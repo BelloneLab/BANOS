@@ -117,6 +117,10 @@ options and valid input, precision, recall, SO and TP are unchanged.
 - Tutorials: the text said that the prediction shifted by 15 frames still detects both
   bouts (DA 1.0); it shares no frame with them, so DA is 0 (it printed NaN before this
   release).
+- The CalMS21 tutorial printed the absolute local paths of its model and data cache; it
+  prints them relative to the repository. Its download failed: data.caltech.edu refuses
+  the default user agent of urllib (HTTP 403), so the requests now send a User-Agent
+  that names the tutorial and the repository. Its stored outputs are those of 1.1.0.
 - `compare_fixtures.py` swapped the `VALUE->NULL` and `NULL->VALUE` tags and misdescribed
   the v0.1.5 to v0.2.0 changes in its legend; it no longer fails on a Windows console.
 - `test_preprocess_data_does_not_mutate_caller_dict` compared a dict's id with itself and
