@@ -8,7 +8,22 @@ license-files = ["LICENSE"]
 requires-python = ">=3.11"
 authors = [{ name = "Benoît J. T. Girard" }]
 maintainers = [{ name = "Benoît J. T. Girard" }]
-keywords = ["behavior", "annotation", "ethology", "video", "scoring", "metrics"]
+keywords = [
+  "behavior",
+  "annotation",
+  "ethology",
+  "video",
+  "scoring",
+  "metrics",
+  "computational ethology",
+  "animal behavior",
+  "behavioral neuroscience",
+  "action segmentation",
+  "bout detection",
+  "evaluation metrics",
+  "inter-annotator agreement",
+  "rodent",
+]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
   "Intended Audience :: Science/Research",

@@ -16,6 +16,14 @@ keywords:
   - video
   - scoring
   - metrics
+  - computational ethology
+  - animal behavior
+  - behavioral neuroscience
+  - action segmentation
+  - bout detection
+  - evaluation metrics
+  - inter-annotator agreement
+  - rodent
 preferred-citation:
   type: article
   title: "From eye to AI: Studying rodent social behavior in the era of machine learning"
