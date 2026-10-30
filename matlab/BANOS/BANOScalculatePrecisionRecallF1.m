@@ -1,8 +1,11 @@
 function [precision, recall, f1] = BANOScalculatePrecisionRecallF1(tp, fp, fn)
     % Calculates Precision, Recall, and F1 score at the bout level.
     %
-    % Returns NaN (not 0) when the denominator is zero, matching Python behaviour.
-    % NaN values propagate correctly through BANOSaggregateMetrics (nanmean).
+    % Precision and recall are NaN (not 0) when their denominator is zero,
+    % matching Python behaviour. F1 is 0 when no bout is matched but some
+    % bouts were predicted or missed (TP = 0 and FP + FN > 0), and NaN only
+    % when all three counts are zero.
+    % BANOSaggregateMetrics leaves NaN values out of its means.
     %
     % Arguments:
     % tp - Count of True Positives (matched bout pairs).
@@ -12,7 +15,8 @@ function [precision, recall, f1] = BANOScalculatePrecisionRecallF1(tp, fp, fn)
     % Returns:
     % precision - TP / (TP + FP), or NaN if TP + FP = 0.
     % recall    - TP / (TP + FN), or NaN if TP + FN = 0.
-    % f1        - Harmonic mean of precision and recall, or NaN if undefined.
+    % f1        - Harmonic mean of precision and recall; 0 if TP = 0 and
+    %             FP + FN > 0; NaN if TP = FP = FN = 0.
 
     if (tp + fp) > 0
         precision = tp / (tp + fp);
@@ -26,7 +30,9 @@ function [precision, recall, f1] = BANOScalculatePrecisionRecallF1(tp, fp, fn)
         recall = NaN;
     end
 
-    if ~isnan(precision) && ~isnan(recall) && (precision + recall) > 0
+    if tp == 0 && (fp + fn) > 0
+        f1 = 0;
+    elseif ~isnan(precision) && ~isnan(recall) && (precision + recall) > 0
         f1 = 2 * precision * recall / (precision + recall);
     else
         f1 = NaN;

@@ -1,5 +1,5 @@
 % BANOS  Behavior ANnOtation Score toolbox.
-% Version 0.2.0  23-Jan-2025
+% Version 1.1.0  30-Oct-2026
 %
 % High-level entry point (mirrors Python banos.score):
 %   BANOS_score                     - Score one or multiple annotation pairs.
@@ -7,7 +7,8 @@
 % Pipeline functions:
 %   BANOSpreprocessData             - Fill NaN, drop non-binary columns, align headers.
 %   BANOScalculateBANOSForEachFile  - Compute metrics for each recording.
-%   BANOSaggregateMetrics           - Average metrics across recordings (nanmean).
+%   BANOSaggregateMetrics           - Average metrics across recordings (NaN left out).
+%   BANOSpoolComponents             - Pool bout counts and terms across recordings.
 %   BANOScomputeBehaviorMetrics     - Per-behavior metric computation for one recording.
 %
 % Metric functions:
@@ -25,6 +26,7 @@
 %   BANOSisLogicalColumn            - Test whether a column contains only 0 and 1.
 %   BANOSmatchHeaders               - Retain only common behavior columns in pred and GT.
 %   BANOSoverlaps                   - Test whether two bout intervals overlap.
+%   BANOSparseOptions               - Read and validate name-value options.
 %
 % Setup:
 %   setup                           - Add this toolbox to the MATLAB path.

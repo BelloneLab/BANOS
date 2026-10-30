@@ -29,11 +29,11 @@ cells = [
     nbformat.v4.new_markdown_cell("---\n## Section 1 — Classic BANOS Usage"),
     nbformat.v4.new_markdown_cell("### 1.1 Setup"),
     nbformat.v4.new_code_cell(
-        "from pathlib import Path\n"
-        "import math\n\n"
+        "import math\n"
+        "from pathlib import Path\n\n"
+        "import matplotlib.pyplot as plt\n"
         "import numpy as np\n"
         "import pandas as pd\n"
-        "import matplotlib.pyplot as plt\n"
         "import seaborn as sns\n\n"
         "import banos\n\n"
         'print(f"banos version: {banos.__version__}")\n\n'
@@ -43,7 +43,7 @@ cells = [
     nbformat.v4.new_markdown_cell(
         "### 1.2 Single Recording\n\n"
         "Recording_1, behaviors `attack`/`investigation`/`mount` (dropping `other`).\n\n"
-        "> **Note (v0.2.0 absent-behavior rule):**  \n"
+        "> **Note (absent-behavior rule, since v0.2.0; per-file scoring, the default):**  \n"
         "> - GT has no bouts AND machine predicts nothing \u2192 all metrics = **1.0** (correct absence)  \n"
         "> - GT has no bouts BUT machine predicts bouts \u2192 all metrics = **0.0** (false detection)"
     ),
@@ -117,15 +117,12 @@ cells = [
         "| **SO** | Segment Overlap | Temporal IoU \u2014 how well do detected bouts overlap GT? |\n"
         "| **TP** | Temporal Precision | Are bout boundaries (start/end frames) accurate? |\n"
         "| **IC** | Intra-bout Continuity | Is each detected bout clean, without label fragmentation? |\n\n"
-        "**Absent-behavior rule (v0.2.0):**\n"
+        "**Absent-behavior rule (since v0.2.0; per-file scoring, the default):**\n"
         "- GT has no bouts **and** machine predicts nothing \u2192 all metrics = **1.0** (correct absence)  \n"
         "- GT has no bouts **but** machine predicts bouts \u2192 all metrics = **0.0** (false detection)"
     ),
     # ── Section 2 ──────────────────────────────────────────────────────────
-    nbformat.v4.new_markdown_cell(
-        "---\n"
-        "## Section 2 \u2014 Frame-based F1 vs BANOS: our approach and why it differs from CalMS21"
-    ),
+    nbformat.v4.new_markdown_cell("---\n## Section 2 \u2014 Frame-based F1 vs BANOS"),
     nbformat.v4.new_markdown_cell(
         "### 2a. Frame-based F1: our implementation\n\n"
         "We compute per-recording frame F1 for each behavior, macro-average across behaviors, "
@@ -157,7 +154,7 @@ cells = [
         "    f1s = [frame_f1(p[b].values, g[b].values) for b in BEHAVIORS]\n"
         "    per_rec_f1.append(np.nanmean(f1s))\n\n"
         "frame_f1_score = np.nanmean(per_rec_f1)\n"
-        'print(f"Frame-based F1 (our approach): {frame_f1_score:.3f}")  # Expected: ~0.791'
+        'print(f"Frame-based F1: {frame_f1_score:.3f}")'
     ),
     nbformat.v4.new_markdown_cell("### 2b. BANOS metrics: same recordings, same behaviors"),
     nbformat.v4.new_code_cell(
@@ -194,12 +191,15 @@ cells = [
         "- Macro-average across 3 behaviors (attack/investigation/mount)\n\n"
         "**Our approach differs in two ways:**\n\n"
         "1. **Per-recording then averaged**: we treat each recording equally; CalMS21 weights by recording length. "
-        "Per-recording aggregation preserves recording-level variability \u2014 which is scientifically meaningful for ethological studies.\n\n"
+        "Per-recording aggregation preserves recording-level variability.\n\n"
         "2. **Explicit absent-behavior scoring**: we explicitly reward correct absence (score 1) and penalize false detection (score 0). "
         "CalMS21\u2019s pooled approach implicitly handles this by having behaviors present in at least some videos.\n\n"
-        "We do **not** align with CalMS21\u2019s pooled approach because BANOS\u2019s purpose is to quantify annotation quality "
-        "**per recording**, not globally. Collapsing all recordings into one global pool hides per-recording variability "
+        "By default, we do **not** align with CalMS21\u2019s pooled approach because BANOS\u2019s purpose is to quantify annotation quality "
+        "**per recording** also, not globally only. Collapsing all recordings into one global pool hides per-recording variability "
         "that is central to BANOS\u2019s value.\n\n"
+        'To compare or rank models on a whole dataset, `banos.score(data, aggregation="pooled")` scores each behavior once '
+        "on the bout counts and terms of all recordings, without the absent-behavior rule. The per-file mean, by contrast, "
+        "mixes detection quality with the share of recordings without the behavior (see the README).\n\n"
         "> For direct comparison with CalMS21 leaderboard numbers, use the CalMS21 dataset with their exact metric.  \n"
         "> For publications, state both the frame F1 methodology and the BANOS metrics explicitly."
     ),
@@ -246,14 +246,17 @@ cells = [
     ),
     nbformat.v4.new_markdown_cell(
         "**Interpretation:**\n"
-        "- **Frame F1** tells you how many frames overlap \u2014 a 15-frame shift collapses the score to 0.\n"
-        "- **BANOS DA** tells you whether the system found the right *bouts* (count-level matching). "
-        "Both shifted predictions still detect 2 bouts matching 2 GT bouts, so DA=1.0.\n"
-        "- **BANOS TP** quantifies the temporal shift magnitude \u2014 a small shift gives high TP (~1.0), "
-        "a large shift gives low TP.\n"
-        "- **BANOS SO** measures fractional temporal IoU of matched bouts.\n\n"
-        "Frame F1 says \u201cshifted by 15 frames is equally wrong as completely missing\u201d.  \n"
-        "BANOS tells you *how* the system is wrong \u2014 and by how much."
+        "- **Frame F1** tells you how many frames overlap \u2014 a 15-frame shift (B) collapses the score to 0, "
+        "a 2-frame shift (C) gives 0.80.\n"
+        "- **BANOS DA** tells you whether the system found the right *bouts*: a predicted bout detects a GT bout "
+        "when they share at least one frame. C detects both GT bouts, so DA = 1.0. B shares no frame with them: "
+        "both GT bouts are missed and both predicted bouts are false, so DA = 0, and SO and TP are undefined (NaN), "
+        'having no overlapping pair (with `missed_bouts="zero"`, they would be 0).\n'
+        "- **BANOS TP** quantifies the boundary error, 1 / (1 + |\u0394start| + |\u0394end|): C, 2 frames late at both ends, "
+        "gets 1 / 5 = 0.2. It falls quickly with the shift.\n"
+        "- **BANOS SO** measures the temporal IoU of overlapping bouts: for C, 8 shared frames out of 12, 0.667.\n\n"
+        "Frame F1 gives C a single 0.80.  \n"
+        "BANOS tells you *how* the system is wrong \u2014 every bout found (DA), but late (SO, TP)."
     ),
 ]
 

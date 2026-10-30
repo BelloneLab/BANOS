@@ -11,11 +11,20 @@ NaN vs 0 policy:
   - No GT bouts -> recall denominator is 0 -> recall = NaN, not 0
   - No overlapping bouts -> SO/TP have no inputs -> NaN, not 0
   - Single-frame GT bout -> IC denominator is 0 -> NaN, not 0
+  - No GT bout found (no predicted frame inside) -> IC has no bout to average -> NaN
 
   WHY NaN and not 0: returning 0 would bias the group/overall averages downward
-  by treating "undefined" as "worst possible score". nanmean() in aggregate_metrics
-  correctly excludes NaN values so they do not affect recordings where the behavior
-  actually occurred.
+  by treating "undefined" as "worst possible score"; aggregate_metrics leaves
+  NaN values out of its averages (nanmean). In the pipeline, a recording with no
+  GT bout of a behavior never gets these NaN: compute_behavior_metrics scores it
+  1.0 (nothing predicted) or 0.0 (false bouts). The NaN cells that reach the
+  averages come from recordings that have GT bouts: precision when nothing is
+  predicted, SO/TP when no bout overlaps, IC when no GT bout longer than one
+  frame is found.
+
+  F1 is the exception: with no matched bout (TP = 0) but some predicted or
+  missed bouts (FP + FN > 0) it is 0, the value of the count form
+  2 TP / (2 TP + FP + FN). It is NaN only when TP = FP = FN = 0.
 
 IC switch-counting range:
   count_switches_within_bout uses range(gt_start, gt_end) — inclusive of gt_end-1,
@@ -25,12 +34,18 @@ IC switch-counting range:
 
 import math
 
+import pandas as pd
+import pytest
+
 from banos.core.metrics import (
     calculate_ic,
+    calculate_ic_terms,
     calculate_precision_recall_f1,
     calculate_so,
+    calculate_so_terms,
     calculate_tiou,
     calculate_tp_metric,
+    calculate_tp_terms,
     count_switches_within_bout,
     identify_bouts,
 )
@@ -88,6 +103,29 @@ def test_prf1_balanced():
     assert abs(f1 - 2 / 3) < 1e-10
 
 
+def test_prf1_nothing_predicted_f1_is_zero():
+    """Real bouts, nothing predicted: precision is 0/0, but F1 is 0, not NaN."""
+    p, r, f1 = calculate_precision_recall_f1(0, 0, 3)
+    assert math.isnan(p)
+    assert r == 0.0
+    assert f1 == 0.0
+
+
+def test_prf1_only_false_bouts_f1_is_zero():
+    """Only false bouts and no real bout: recall is 0/0, but F1 is 0, not NaN."""
+    p, r, f1 = calculate_precision_recall_f1(0, 3, 0)
+    assert p == 0.0
+    assert math.isnan(r)
+    assert f1 == 0.0
+
+
+def test_prf1_false_and_missed_bouts_f1_is_zero():
+    """Predicted and real bouts that never overlap: P = R = 0 and F1 = 0."""
+    p, r, f1 = calculate_precision_recall_f1(0, 2, 2)
+    assert p == 0.0 and r == 0.0
+    assert f1 == 0.0
+
+
 # --- calculate_tiou ---
 
 
@@ -121,7 +159,8 @@ def test_so_returns_nan_for_empty_gt():
     """SO is undefined (NaN) when GT has no bouts — not 0.
 
     WHY: 'no GT bouts' means the metric is inapplicable, not that overlap is zero.
-    NaN causes aggregate_metrics to exclude this recording from the SO average.
+    The pipeline does not average this NaN: a recording with no GT bout of a
+    behavior scores 1.0 or 0.0 per file, and adds no SO term when pooled.
     """
     assert math.isnan(calculate_so([(0, 5)], []))
 
@@ -188,6 +227,27 @@ def test_switches_subset_range():
     assert count_switches_within_bout([0, 1, 0, 1, 0], 1, 3) == 2
 
 
+SERIES_INDEXES = {
+    "1-based": [1, 2, 3, 4, 5],
+    "reversed": [4, 3, 2, 1, 0],
+    "float": [0.0, 0.04, 0.08, 0.12, 0.16],
+    "string": ["f0", "f1", "f2", "f3", "f4"],
+}
+
+
+@pytest.mark.parametrize("kind", SERIES_INDEXES)
+def test_switches_and_ic_read_series_by_position(kind):
+    """A Series is read by frame position; its index labels are ignored.
+
+    pred=[1,1,0,0,0], gt=(0,2): one switch (frames 1-2) in length 2 -> IC 0.5.
+    Read by label, the 1-based and float indexes raise KeyError and the
+    reversed one reads frames 4, 3, 2, which hold no switch.
+    """
+    pred = pd.Series([1, 1, 0, 0, 0], index=SERIES_INDEXES[kind])
+    assert count_switches_within_bout(pred, 0, 2) == 1
+    assert calculate_ic(pred, [(0, 2)]) == 0.5
+
+
 # --- calculate_ic ---
 
 
@@ -216,3 +276,106 @@ def test_ic_zero_length_bout_excluded():
     result = calculate_ic([1], [(0, 0)])
     # gt_length = 0, so this bout is skipped -> no valid scores -> NaN
     assert math.isnan(result)
+
+
+def test_ic_leaves_missed_bouts_out():
+    """IC averages over the found GT bouts only; a missed bout does not score 1.0.
+
+    pred=[1,1,0,0,0,0,0], gt=(0,2) and (4,6). Bout (0,2) is found: one switch
+    in length 2 -> 0.5. Bout (4,6) has no predicted frame and is left out, so
+    IC = 0.5 (it was (0.5 + 1.0) / 2 = 0.75 when a missed bout scored 1.0).
+    """
+    assert calculate_ic([1, 1, 0, 0, 0, 0, 0], [(0, 2), (4, 6)]) == 0.5
+
+
+def test_ic_nan_when_no_bout_is_found():
+    """Nothing predicted inside any GT bout: IC has nothing to average (NaN, not 1.0)."""
+    assert math.isnan(calculate_ic([0, 0, 0, 0, 0], [(0, 1), (3, 4)]))
+
+
+# --- missed_bouts: 'exclude' (default) or 'zero' ---
+#
+# GT bouts (0,4), (10,14), (20,24), (30,30); predicted bouts (0,4), (11,14).
+# (0,4) is found exactly, (10,14) is found one frame late, (20,24) and the
+# one-frame bout (30,30) are missed.
+
+MISSED_PRED_BOUTS = [(0, 4), (11, 14)]
+MISSED_GT_BOUTS = [(0, 4), (10, 14), (20, 24), (30, 30)]
+MISSED_PRED_SEQUENCE = [1] * 5 + [0] * 6 + [1] * 4 + [0] * 16  # frames 0..30
+
+
+def test_so_missed_bouts():
+    """SO terms: tIoU 1 and 4/5 for the found bouts, plus one 0 per missed bout with 'zero'.
+
+    exclude: (1 + 0.8) / 2 = 0.9; zero: (1 + 0.8 + 0 + 0) / 4 = 0.45.
+    """
+    assert calculate_so_terms(MISSED_PRED_BOUTS, MISSED_GT_BOUTS) == [1.0, 0.8]
+    assert calculate_so_terms(MISSED_PRED_BOUTS, MISSED_GT_BOUTS, missed_bouts="zero") == [
+        1.0,
+        0.8,
+        0.0,
+        0.0,
+    ]
+    assert abs(calculate_so(MISSED_PRED_BOUTS, MISSED_GT_BOUTS) - 0.9) < 1e-10
+    assert abs(calculate_so(MISSED_PRED_BOUTS, MISSED_GT_BOUTS, missed_bouts="zero") - 0.45) < 1e-10
+
+
+def test_tp_metric_missed_bouts():
+    """TP terms: 1 and 1/(1 + 1 + 0) = 0.5 for the found bouts, plus one 0 per missed bout.
+
+    exclude: (1 + 0.5) / 2 = 0.75; zero: (1 + 0.5 + 0 + 0) / 4 = 0.375.
+    """
+    assert calculate_tp_terms(MISSED_PRED_BOUTS, MISSED_GT_BOUTS) == [1.0, 0.5]
+    assert calculate_tp_terms(MISSED_PRED_BOUTS, MISSED_GT_BOUTS, missed_bouts="zero") == [
+        1.0,
+        0.5,
+        0.0,
+        0.0,
+    ]
+    assert calculate_tp_metric(MISSED_PRED_BOUTS, MISSED_GT_BOUTS) == 0.75
+    assert calculate_tp_metric(MISSED_PRED_BOUTS, MISSED_GT_BOUTS, missed_bouts="zero") == 0.375
+
+
+def test_ic_missed_bouts():
+    """IC terms: 1 for (0,4), 1 - 1/4 for (10,14) (switch at frames 10-11), 0 for (20,24) with 'zero'.
+
+    The missed one-frame bout (30,30) adds no IC term in either mode.
+    exclude: (1 + 0.75) / 2 = 0.875; zero: (1 + 0.75 + 0) / 3 = 1.75 / 3.
+    """
+    assert calculate_ic_terms(MISSED_PRED_SEQUENCE, MISSED_GT_BOUTS) == [1.0, 0.75]
+    assert calculate_ic_terms(MISSED_PRED_SEQUENCE, MISSED_GT_BOUTS, missed_bouts="zero") == [
+        1.0,
+        0.75,
+        0.0,
+    ]
+    assert calculate_ic(MISSED_PRED_SEQUENCE, MISSED_GT_BOUTS) == 0.875
+    zero = calculate_ic(MISSED_PRED_SEQUENCE, MISSED_GT_BOUTS, missed_bouts="zero")
+    assert abs(zero - 1.75 / 3) < 1e-10
+
+
+def test_missed_bouts_zero_when_nothing_overlaps():
+    """With 'zero', real bouts and no overlap give SO = TP = IC = 0 instead of NaN."""
+    pred_bouts, gt_bouts, pred_sequence = [(0, 1)], [(5, 8)], [1, 1, 0, 0, 0, 0, 0, 0, 0]
+    assert math.isnan(calculate_so(pred_bouts, gt_bouts))
+    assert calculate_so(pred_bouts, gt_bouts, missed_bouts="zero") == 0.0
+    assert math.isnan(calculate_tp_metric(pred_bouts, gt_bouts))
+    assert calculate_tp_metric(pred_bouts, gt_bouts, missed_bouts="zero") == 0.0
+    assert math.isnan(calculate_ic(pred_sequence, gt_bouts))
+    assert calculate_ic(pred_sequence, gt_bouts, missed_bouts="zero") == 0.0
+
+
+@pytest.mark.parametrize(
+    "function, first_argument",
+    [
+        (calculate_so, []),
+        (calculate_so_terms, []),
+        (calculate_tp_metric, []),
+        (calculate_tp_terms, []),
+        (calculate_ic, [0, 1]),
+        (calculate_ic_terms, [0, 1]),
+    ],
+)
+def test_invalid_missed_bouts_raises(function, first_argument):
+    """An unknown missed_bouts value raises ValueError, even without any bout."""
+    with pytest.raises(ValueError, match="Unknown missed_bouts option"):
+        function(first_argument, [], missed_bouts="drop")

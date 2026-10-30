@@ -14,7 +14,7 @@
 
 clear; clc;
 
-% Detect project root (works whether run from root or example/)
+% Detect project root from the location of this file (demo/)
 thisDir = fileparts(mfilename('fullpath'));
 if exist(fullfile(thisDir, 'matlab'), 'dir')
     projectRoot = thisDir;
@@ -40,9 +40,9 @@ fprintf('--- Section 1: Classic BANOS Usage ---\n\n');
 %% 1.1 Setup — already done above (addpath, BEHAVIORS, datasetDir)
 
 %% 1.2 Single Recording -------------------------------------------------------
-% Recording_1, behaviors event1/event2/event3 (dropping 'other')
+% Recording_1, behaviors attack/investigation/mount (dropping 'other')
 %
-% v0.2.0 absent-behavior rule:
+% Absent-behavior rule (since v0.2.0; per-file scoring, the default):
 %   - GT has no bouts AND machine predicts nothing -> all metrics = 1.0 (correct absence)
 %   - GT has no bouts BUT machine predicts bouts   -> all metrics = 0.0 (false detection)
 
@@ -50,7 +50,7 @@ recDir    = fullfile(datasetDir, 'Recording_1');
 predTable = readtable(fullfile(recDir, 'humanAnnotation_2.csv'));
 gtTable   = readtable(fullfile(recDir, 'humanAnnotation_1.csv'));
 
-% Keep only event1/event2/event3
+% Keep only attack/investigation/mount
 predTable = predTable(:, BEHAVIORS);
 gtTable   = gtTable(:, BEHAVIORS);
 
@@ -125,7 +125,7 @@ fprintf('  DA (F1) : Bout-level F1 -- did the system find the right bouts?\n');
 fprintf('  SO      : Temporal IoU -- how well do detected bouts overlap GT?\n');
 fprintf('  TP      : Boundary precision -- are bout start/end frames accurate?\n');
 fprintf('  IC      : Intra-bout continuity -- is each detected bout clean?\n\n');
-fprintf('Absent-behavior rule (v0.2.0):\n');
+fprintf('Absent-behavior rule (since v0.2.0; per-file scoring, the default):\n');
 fprintf('  GT has no bouts AND machine predicts nothing -> all metrics = 1.0 (correct absence)\n');
 fprintf('  GT has no bouts BUT machine predicts bouts   -> all metrics = 0.0 (false detection)\n\n');
 
@@ -171,7 +171,7 @@ for ri = 1:nRec
 end
 
 framef1_overall = mean(perRecF1, 'omitnan');
-fprintf('Frame-based F1 (our approach): %.3f\n', framef1_overall);  % Expected: ~0.791
+fprintf('Frame-based F1 (our approach): %.3f\n', framef1_overall);  % Expected: 0.815
 
 %% 2b. BANOS metrics: same recordings, same behaviors ------------------------
 
@@ -217,8 +217,13 @@ fprintf('     for ethological studies.\n\n');
 fprintf('  2. Explicit absent-behavior scoring: we reward correct absence (score 1)\n');
 fprintf('     and penalize false detection (score 0). CalMS21 implicitly handles\n');
 fprintf('     this via pooling.\n\n');
-fprintf('We do NOT align with CalMS21 pooled approach because BANOS quantifies\n');
-fprintf('annotation quality per recording, not globally only.\n\n');
+fprintf('By default, we do NOT align with CalMS21 pooled approach because BANOS\n');
+fprintf('quantifies annotation quality per recording, not globally only.\n');
+fprintf('To compare or rank models on a whole dataset,\n');
+fprintf('BANOS_score(data, ''aggregation'', ''pooled'') scores each behavior once on\n');
+fprintf('the bout counts and terms of all recordings, without the absent-behavior\n');
+fprintf('rule. The per-file mean, by contrast, mixes detection quality with the\n');
+fprintf('share of recordings without the behavior (see the README).\n\n');
 fprintf('For publications: state both the frame F1 methodology and BANOS metrics.\n\n');
 
 %% 2e. Thought experiment -- the shifted annotator ---------------------------
@@ -255,7 +260,7 @@ fprintf('%-15s  %8s  %8s  %6s  %6s\n', 'Prediction', 'Frame F1', 'BANOS DA', 'SO
 fprintf('%s\n', repmat('-', 1, 52));
 for pi = 1:3
     p = preds{pi};
-    ff1 = local_frame_f1(p, gt_s);
+    ff1 = local_frame_f1_raw(p, gt_s);
     pred_cell = [{'beh'}; num2cell(p)];
     b_m = BANOS_score(pred_cell, gt_cell);
     b = b_m.beh;
@@ -264,18 +269,25 @@ for pi = 1:3
 end
 
 fprintf('\nInterpretation:\n');
-fprintf('  Frame F1 collapses to 0 for a 15-frame shift -- same as completely missing.\n');
-fprintf('  BANOS DA = 1.0 for all predictions (both bouts are still detected).\n');
-fprintf('  BANOS TP quantifies the temporal shift: large shift -> low TP.\n');
-fprintf('  BANOS SO measures fractional temporal IoU of matched bouts.\n\n');
-fprintf('Frame F1 says "shifted 15f is equally wrong as missing entirely".\n');
-fprintf('BANOS tells you HOW the system is wrong -- and by how much.\n\n');
+fprintf('  Frame F1 collapses to 0 for a 15-frame shift (B); a 2-frame shift (C)\n');
+fprintf('  gives 0.80.\n');
+fprintf('  BANOS DA counts bouts: a predicted bout detects a GT bout when they share\n');
+fprintf('  at least one frame. C detects both GT bouts: DA = 1.0. B shares no frame\n');
+fprintf('  with them: both GT bouts are missed and both predicted bouts are false,\n');
+fprintf('  so DA = 0, and SO and TP are undefined (NaN), having no overlapping pair\n');
+fprintf('  (with ''missed_bouts'', ''zero'' they would be 0).\n');
+fprintf('  BANOS TP quantifies the boundary error, 1 / (1 + |start diff| + |end diff|):\n');
+fprintf('  C, 2 frames late at both ends, gets 1 / 5 = 0.2.\n');
+fprintf('  BANOS SO measures the temporal IoU of overlapping bouts: for C, 8 shared\n');
+fprintf('  frames out of 12, 0.667.\n\n');
+fprintf('Frame F1 gives C a single 0.80.\n');
+fprintf('BANOS tells you HOW the system is wrong -- every bout found (DA), but late (SO, TP).\n\n');
 
 fprintf('Tutorial complete!\n');
 
 
 %% =========================================================================
-%% Local helper: frame-level F1 with explicit absent-behavior scoring
+%% Local helpers: frame-level F1, with and without absent-behavior scoring
 %% =========================================================================
 
 function f1 = local_frame_f1(pred_col, gt_col)
@@ -308,5 +320,26 @@ function f1 = local_frame_f1(pred_col, gt_col)
         f1 = 2 * prec * rec / (prec + rec);
     else
         f1 = NaN;
+    end
+end
+
+function f1 = local_frame_f1_raw(pred_col, gt_col)
+    % Frame-level F1 without absent-behavior scoring, as frame_f1_raw in the
+    % Python tutorial: precision, recall and F1 are 0 when undefined.
+    tp_f = sum(pred_col == 1 & gt_col == 1);
+    fp_f = sum(pred_col == 1 & gt_col == 0);
+    fn_f = sum(pred_col == 0 & gt_col == 1);
+    prec = 0;
+    rec = 0;
+    if (tp_f + fp_f) > 0
+        prec = tp_f / (tp_f + fp_f);
+    end
+    if (tp_f + fn_f) > 0
+        rec = tp_f / (tp_f + fn_f);
+    end
+    if (prec + rec) > 0
+        f1 = 2 * prec * rec / (prec + rec);
+    else
+        f1 = 0;
     end
 end

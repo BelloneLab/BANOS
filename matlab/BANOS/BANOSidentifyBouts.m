@@ -5,7 +5,8 @@ function bouts = BANOSidentifyBouts(sequence)
     % sequence - A binary vector representing predictions or ground truth.
     %
     % Returns:
-    % bouts - A cell array of tuples, each tuple contains start and end indices of a bout.
+    % bouts - A cell array with one [start, end] row vector per bout (1-based
+    %         indices, both included).
 
     bouts = {};
     start = NaN;

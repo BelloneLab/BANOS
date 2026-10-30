@@ -11,8 +11,11 @@ Greedy matching: for each predicted bout, claim the first available GT bout
 that overlaps. Fast (O(n*m)) but can make suboptimal early commitments.
 
 Optimal matching: Hungarian algorithm (scipy.optimize.linear_sum_assignment)
-finds the globally best assignment, maximizing total overlap. Slower (O(n^3))
-but scientifically preferable when bouts are densely overlapping.
+finds the assignment with the most overlapping (matched) pairs. Slower (O(n^3)).
+On bouts read from 0/1 columns, as in score(), greedy matching already finds
+the most pairs, so both give the same counts. They can differ only when
+calculate_tp_fp_fn is given bouts directly and the bouts of one side overlap
+one another, as below, or are not in time order.
 
 The test_optimal_beats_greedy test documents the exact scenario where greedy
 fails: pred(0,10) greedily takes gt(0,3) — the first overlap it finds — leaving

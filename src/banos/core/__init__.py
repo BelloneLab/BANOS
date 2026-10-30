@@ -2,10 +2,13 @@
 from banos.core.matching import calculate_tp_fp_fn
 from banos.core.metrics import (
     calculate_ic,
+    calculate_ic_terms,
     calculate_precision_recall_f1,
     calculate_so,
+    calculate_so_terms,
     calculate_tiou,
     calculate_tp_metric,
+    calculate_tp_terms,
     count_switches_within_bout,
     identify_bouts,
 )
@@ -21,8 +24,11 @@ __all__ = [
     "identify_bouts",
     "calculate_tiou",
     "calculate_so",
+    "calculate_so_terms",
     "calculate_tp_metric",
+    "calculate_tp_terms",
     "calculate_ic",
+    "calculate_ic_terms",
     "count_switches_within_bout",
     "calculate_precision_recall_f1",
     "is_logical_column",

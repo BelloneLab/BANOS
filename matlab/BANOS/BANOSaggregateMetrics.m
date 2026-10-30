@@ -37,8 +37,8 @@ function [groupMetrics, overallMetrics] = BANOSaggregateMetrics(fileMetrics)
     for j = 1:length(metricFields)
         field = metricFields{j};
         for behavior = fieldnames(groupMetrics)'
-            groupMetrics.(behavior{1}).(field) = nanmean(groupMetrics.(behavior{1}).(field));
+            groupMetrics.(behavior{1}).(field) = mean(groupMetrics.(behavior{1}).(field), 'omitnan');
         end
-        overallMetrics.(field) = nanmean(overallMetrics.(field));
+        overallMetrics.(field) = mean(overallMetrics.(field), 'omitnan');
     end
 end

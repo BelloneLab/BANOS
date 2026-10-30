@@ -8,6 +8,11 @@ def _overlaps(pred: tuple[int, int], gt: tuple[int, int]) -> bool:
     return pred[1] >= gt[0] and pred[0] <= gt[1]
 
 
+def _check_matching(matching: str) -> None:
+    if matching not in ("greedy", "optimal"):
+        raise ValueError(f"Unknown matching algorithm: {matching!r}. Use 'greedy' or 'optimal'.")
+
+
 def calculate_tp_fp_fn(
     pred_bouts: list[tuple[int, int]],
     gt_bouts: list[tuple[int, int]],
@@ -25,8 +30,7 @@ def calculate_tp_fp_fn(
     -------
     (true_positives, false_positives, false_negatives)
     """
-    if matching not in ("greedy", "optimal"):
-        raise ValueError(f"Unknown matching algorithm: {matching!r}. Use 'greedy' or 'optimal'.")
+    _check_matching(matching)
 
     if not gt_bouts:
         return 0, len(pred_bouts), 0

@@ -25,10 +25,9 @@ Contact: open a [GitHub Issue](https://github.com/BelloneLab/BANOS/issues).
 
 ## How to Report a Bug
 
-Open a [GitHub Issue](https://github.com/BelloneLab/BANOS/issues) using the bug report
-template. Please include:
+Open a [GitHub Issue](https://github.com/BelloneLab/BANOS/issues). Please include:
 
-- BANOS version (`pip show banos` or check `pyproject.toml`)
+- BANOS version (`pip show banos`, or `banos.__version__`)
 - Python version (or MATLAB version, if applicable)
 - A minimal reproducible example (small CSV + code that demonstrates the wrong output)
 
@@ -41,8 +40,19 @@ template. Please include:
 
 Code style:
 - Python: follow existing style enforced by `ruff` (lint + format)
-- Use type hints consistent with the existing codebase
+- Use type hints consistent with the existing codebase; CI runs `mypy` on `src/`
 - Tests are required for bug fixes (see `tests/`)
+- A fix that changes a metric changes both implementations, Python (`src/banos/`) and
+  MATLAB (`matlab/BANOS/`), and regenerates the golden fixtures (see
+  [`RELEASE.md`](RELEASE.md)); the parity tests compare the two
+
+Before opening the PR, run the checks of CI (see [`SETUP.md`](SETUP.md)):
+```bash
+uv run ruff check src/ tests/ demo/quickstart.py
+uv run ruff format --check src/ tests/ demo/quickstart.py
+uv run mypy src/
+uv run pytest
+```
 
 ## What We Accept
 
